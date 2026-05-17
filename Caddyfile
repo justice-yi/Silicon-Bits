@@ -1,0 +1,7 @@
+# Uncomment and modify for public access
+# silicon-bits.yourdomain.com {
+#     reverse_proxy app:8080
+#     basicauth / {
+#         admin $2a$14$REPLACE_WITH_HASHED_PASSWORD
+#     }
+# }

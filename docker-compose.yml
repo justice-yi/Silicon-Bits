@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      - PORT=8080
+      - DATA_DIR=/data
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=silicon
+    restart: unless-stopped
+
+  # Uncomment for public access with HTTPS
+  # caddy:
+  #   image: caddy:2
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   restart: unless-stopped
+
+# volumes:
+#   caddy_data:
+#   caddy_config:

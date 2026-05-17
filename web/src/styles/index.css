@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    @apply bg-bg text-gray-200 antialiased;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent/30;
+  }
+
+  ::selection {
+    @apply bg-accent/20 text-accent;
+  }
+}
+
+@layer components {
+  /* Terminal-style green glow for accent elements */
+  .glow-green {
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+  }
+
+  /* Card with subtle border glow on hover */
+  .card-glow {
+    @apply border border-border/50 transition-all duration-200;
+  }
+  .card-glow:hover {
+    @apply border-accent/30 shadow-[0_0_15px_rgba(0,255,136,0.05)];
+  }
+
+  /* Markdown content styling */
+  .markdown-body h1 { @apply text-3xl font-bold text-white mt-6 mb-4; }
+  .markdown-body h2 { @apply text-2xl font-semibold text-accent mt-6 mb-3; }
+  .markdown-body h3 { @apply text-lg font-medium text-secondary mt-5 mb-2; }
+  .markdown-body h4 { @apply text-base font-medium text-gray-200 mt-4 mb-2; }
+  .markdown-body h5 { @apply text-sm font-medium text-gray-300 mt-3 mb-2; }
+  .markdown-body h6 { @apply text-sm font-medium text-gray-400 mt-3 mb-1; }
+  .markdown-body p { @apply text-gray-300 leading-relaxed mb-4; }
+  .markdown-body ul { @apply list-disc list-inside mb-3 text-gray-300; }
+  .markdown-body ol { @apply list-decimal list-inside mb-3 text-gray-300; }
+  .markdown-body li { @apply mb-1; }
+  .markdown-body code {
+    @apply bg-surface text-accent px-1.5 py-0.5 rounded font-mono text-[14px];
+  }
+  .markdown-body pre {
+    @apply bg-surface rounded-lg p-5 mb-4 overflow-x-auto border border-border/30 text-[14px];
+  }
+  .markdown-body pre code {
+    @apply bg-transparent px-0 py-0;
+  }
+  .markdown-body blockquote {
+    @apply border-l-2 border-accent/50 pl-4 my-3 text-gray-400 italic;
+  }
+  .markdown-body a {
+    @apply text-secondary hover:text-accent underline transition-colors;
+  }
+  .markdown-body strong { @apply text-white font-semibold; }
+  .markdown-body table { @apply w-full mb-4; }
+  .markdown-body th { @apply text-left py-2 px-3 border-b border-border text-gray-400 font-medium; }
+  .markdown-body td { @apply py-2 px-3 border-b border-border/30; }
+
+  /* Severity badges */
+  .badge-critical { @apply bg-danger/20 text-danger border-danger/30; }
+  .badge-major { @apply bg-warning/20 text-warning border-warning/30; }
+  .badge-minor { @apply bg-secondary/20 text-secondary border-secondary/30; }
+  .badge-cosmetic { @apply bg-gray-500/20 text-gray-400 border-gray-500/30; }
+
+  /* Subtle grid background */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(30, 58, 95, 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30, 58, 95, 0.15) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+}
+
+/* Highlight.js overrides for dark theme */
+.hljs {
+  @apply bg-surface text-gray-300;
+}
+.hljs-keyword { @apply text-purple-400; }
+.hljs-string { @apply text-accent; }
+.hljs-number { @apply text-secondary; }
+.hljs-comment { @apply text-gray-500 italic; }
+.hljs-function { @apply text-secondary; }
+.hljs-title { @apply text-secondary; }
+.hljs-type { @apply text-purple-400; }
+.hljs-built_in { @apply text-warning; }
+.hljs-literal { @apply text-danger; }
