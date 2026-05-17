@@ -1,10 +1,13 @@
-# Silicon Bits 使用文档
+# Silicon Bits
+
+> 嵌入式 Linux 驱动 Bug 调试记录 + Wiki 知识库系统
 
 ## 目录
 
 - [快速开始](#快速开始)
 - [开发模式运行](#开发模式运行)
 - [交叉编译](#交叉编译)
+- [Windows 版本编译与部署](#windows-版本编译与部署)
 - [Docker 部署](#docker-部署)
 - [公网部署（HTTPS）](#公网部署https)
 - [给别人快速部署](#给别人快速部署)
@@ -97,8 +100,91 @@ PORT=8080 ./silicon-bits-arm64
 |---------|------|--------|-----|
 | Linux AMD64 | linux | amd64 | gcc |
 | Linux ARM64 | linux | arm64 | aarch64-linux-gnu-gcc |
+| Windows AMD64 | windows | amd64 | x86_64-w64-mingw32-gcc |
 | macOS ARM64 | darwin | arm64 | clang |
 | macOS AMD64 | darwin | amd64 | clang |
+
+---
+
+## Windows 版本编译与部署
+
+### 1. 安装交叉编译工具链（Linux 上编译 Windows 版本）
+
+```bash
+# Ubuntu/Debian
+sudo apt install gcc-mingw-w64-x86-64
+```
+
+### 2. 编译前端
+
+```bash
+cd web && npm install && npm run build && cd ..
+```
+
+### 3. 交叉编译 Windows 二进制
+
+```bash
+CGO_ENABLED=1 \
+GOOS=windows \
+GOARCH=amd64 \
+CC=x86_64-w64-mingw32-gcc \
+go build -tags "fts5" -ldflags="-s -w" -o silicon-bits.exe ./cmd/server
+```
+
+### 4. 部署到 Windows
+
+将以下文件拷贝到 Windows 机器：
+
+```
+silicon-bits/
+├── silicon-bits.exe       # 编译好的二进制
+└── web/
+    └── dist/              # 前端构建产物
+        ├── index.html
+        └── assets/
+            ├── index-xxx.css
+            └── index-xxx.js
+```
+
+**注意**：`data/` 目录不需要拷贝，启动时会自动创建。
+
+### 5. 在 Windows 上运行
+
+**方式一：直接双击 `silicon-bits.exe`**
+
+使用默认配置（端口 8080，账号 admin/silicon），访问 `http://localhost:8080`。
+
+**方式二：通过命令行自定义配置**
+
+```cmd
+set PORT=9090
+set AUTH_USERNAME=admin
+set AUTH_PASSWORD=your_password
+silicon-bits.exe
+```
+
+**方式三：创建启动脚本 `start.bat`**
+
+```bat
+@echo off
+set PORT=8080
+set AUTH_USERNAME=admin
+set AUTH_PASSWORD=silicon
+silicon-bits.exe
+pause
+```
+
+双击 `start.bat` 即可启动。
+
+### 6. 局域网访问
+
+确保 Windows 防火墙允许对应端口入站，同一局域网的设备访问：
+
+```
+http://Windows机器IP:8080
+```
+
+查看 Windows IP：打开 CMD 执行 `ipconfig`。
 
 ---
 
@@ -130,6 +216,8 @@ Stage 1: node:20-alpine     → 构建前端 (npm run build)
 Stage 2: golang:1.22-alpine → 编译后端 (CGO_ENABLED=1, go build -tags fts5)
 Stage 3: alpine:3.19        → 最终运行镜像 (~30MB)
 ```
+
+Dockerfile 内置了国内镜像加速（`GOPROXY=https://goproxy.cn` 和 `npm --registry=https://registry.npmmirror.com`）。
 
 ### 自定义配置
 
@@ -299,55 +387,13 @@ EOF
 systemctl enable --now silicon-bits
 ```
 
-### 方法三：一键脚本
+### 方法三：Windows 预编译包
 
-创建 `install.sh`：
+从 Release 页面下载 `silicon-bits-windows-amd64.zip`，解压后：
 
-```bash
-#!/bin/bash
-set -e
-
-echo "=== Silicon Bits Installer ==="
-
-# 检查 Docker
-if ! command -v docker &> /dev/null; then
-    echo "Installing Docker..."
-    curl -fsSL https://get.docker.com | sh
-fi
-
-# 检查 docker compose
-if ! docker compose version &> /dev/null; then
-    echo "Error: docker compose not found"
-    exit 1
-fi
-
-# 下载项目
-echo "Downloading Silicon Bits..."
-git clone https://github.com/your-repo/silicon-bits.git
-cd silicon-bits
-
-# 配置
-read -p "Username [admin]: " USERNAME
-read -p "Password [silicon]: " PASSWORD
-USERNAME=${USERNAME:-admin}
-PASSWORD=${PASSWORD:-silicon}
-
-# 修改配置
-sed -i "s/AUTH_USERNAME=admin/AUTH_USERNAME=$USERNAME/" docker-compose.yml
-sed -i "s/AUTH_PASSWORD=silicon/AUTH_PASSWORD=$PASSWORD/" docker-compose.yml
-
-# 启动
-docker compose up -d --build
-
-echo ""
-echo "=== Done ==="
-echo "URL: http://$(hostname -I | awk '{print $1}'):8080"
-echo "Account: $USERNAME / $PASSWORD"
-echo "Wiki files: $(pwd)/data/wiki/"
-echo ""
-echo "To stop:  docker compose down"
-echo "To update: git pull && docker compose up -d --build"
-```
+1. 双击 `start.bat` 或直接双击 `silicon-bits.exe`
+2. 浏览器访问 `http://localhost:8080`
+3. 默认账号 `admin` / `silicon`
 
 ---
 
@@ -567,3 +613,11 @@ AUTH_USERNAME=newuser AUTH_PASSWORD=newpass ./silicon-bits
 ```
 
 或修改 `docker-compose.yml` 中的环境变量后 `docker compose up -d`。
+
+### Q: Docker 构建时 Go 依赖下载失败
+
+Dockerfile 已内置 `GOPROXY=https://goproxy.cn,direct`。如果仍失败，检查网络或更换代理源。
+
+### Q: Windows 版本双击闪退
+
+在 CMD 中运行 `silicon-bits.exe`，查看错误信息。常见原因：`web/dist/` 目录不存在。

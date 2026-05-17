@@ -2,7 +2,7 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
-RUN npm install
+RUN npm install --registry=https://registry.npmmirror.com
 COPY web/ ./
 RUN npm run build
 
@@ -11,6 +11,7 @@ FROM golang:1.22-alpine AS backend
 RUN apk add --no-cache gcc musl-dev
 WORKDIR /app
 COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
@@ -22,6 +23,7 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=backend /silicon-bits .
+COPY --from=backend /app/web/dist/ web/dist/
 RUN mkdir -p /data
 
 ENV PORT=8080
