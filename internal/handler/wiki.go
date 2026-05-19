@@ -36,6 +36,11 @@ func ListWikis(c *gin.Context) {
 		Category: c.Query("category"),
 		Q:        c.Query("q"),
 	}
+	if m := c.Query("module"); m != "" {
+		if id, err := strconv.ParseInt(m, 10, 64); err == nil {
+			f.BSPModuleID = id
+		}
+	}
 	if f.Page = queryInt(c, "page", 1); f.Page < 1 {
 		f.Page = 1
 	}
@@ -50,7 +55,7 @@ func ListWikis(c *gin.Context) {
 		countQ := `SELECT COUNT(*) FROM wikis_fts WHERE wikis_fts MATCH ?`
 		database.DB.QueryRow(countQ, f.Q).Scan(&total)
 
-		dataQ := `SELECT w.id, w.title, w.category, w.tags, substr(w.content, 1, 200) as content, w.source, w.file_path, w.created_at, w.updated_at
+		dataQ := `SELECT w.id, w.title, w.category, w.tags, substr(w.content, 1, 200) as content, w.source, w.file_path, w.bsp_module_id, w.created_at, w.updated_at
 			FROM wikis_fts f JOIN wikis w ON w.id = f.rowid
 			WHERE wikis_fts MATCH ?
 			ORDER BY rank
@@ -68,7 +73,7 @@ func ListWikis(c *gin.Context) {
 		query, args = applyWikiFilters(query, args, f)
 		database.DB.QueryRow(query, args...).Scan(&total)
 
-		query = `SELECT id, title, category, tags, substr(content, 1, 200), source, file_path, created_at, updated_at FROM wikis WHERE 1=1`
+		query = `SELECT id, title, category, tags, substr(content, 1, 200), source, file_path, bsp_module_id, created_at, updated_at FROM wikis WHERE 1=1`
 		var dataArgs []any
 		query, dataArgs = applyWikiFilters(query, dataArgs, f)
 		query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
@@ -93,9 +98,9 @@ func GetWiki(c *gin.Context) {
 	var w model.Wiki
 	var tagsStr string
 	err := database.DB.QueryRow(
-		`SELECT id, title, category, tags, content, source, file_path, created_at, updated_at
+		`SELECT id, title, category, tags, content, source, file_path, bsp_module_id, created_at, updated_at
 		FROM wikis WHERE id = ?`, id,
-	).Scan(&w.ID, &w.Title, &w.Category, &tagsStr, &w.Content, &w.Source, &w.FilePath, &w.CreatedAt, &w.UpdatedAt)
+		).Scan(&w.ID, &w.Title, &w.Category, &tagsStr, &w.Content, &w.Source, &w.FilePath, &w.BSPModuleID, &w.CreatedAt, &w.UpdatedAt)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{"error": "wiki not found"})
 		return
@@ -165,9 +170,9 @@ func CreateWiki(c *gin.Context) {
 
 	var id int64
 	err = database.DB.QueryRow(
-		`INSERT INTO wikis (title, category, tags, content, source, file_path)
-		VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-		req.Title, req.Category, string(tagsJSON), req.Content, req.Source, fp,
+		`INSERT INTO wikis (title, category, bsp_module_id, tags, content, source, file_path)
+		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		req.Title, req.Category, req.BSPModuleID, string(tagsJSON), req.Content, req.Source, fp,
 	).Scan(&id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -234,6 +239,10 @@ func UpdateWiki(c *gin.Context) {
 		args = append(args, *req.Content)
 		newContent = *req.Content
 	}
+		if req.BSPModuleID != nil {
+			setClauses = append(setClauses, "bsp_module_id = ?")
+			args = append(args, *req.BSPModuleID)
+		}
 
 	if len(setClauses) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
@@ -326,14 +335,26 @@ func ExportWiki(c *gin.Context) {
 	var w model.Wiki
 	var tagsStr string
 	err := database.DB.QueryRow(
-		`SELECT id, title, category, tags, content, source, created_at, updated_at
+		`SELECT id, title, category, tags, content, source, file_path, created_at, updated_at
 		FROM wikis WHERE id = ?`, id,
-	).Scan(&w.ID, &w.Title, &w.Category, &tagsStr, &w.Content, &w.Source, &w.CreatedAt, &w.UpdatedAt)
+	).Scan(&w.ID, &w.Title, &w.Category, &tagsStr, &w.Content, &w.Source, &w.FilePath, &w.CreatedAt, &w.UpdatedAt)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{"error": "wiki not found"})
 		return
 	}
 	json.Unmarshal([]byte(tagsStr), &w.Tags)
+
+	// Resolve wiki directory for relative image paths
+	wDir := ""
+	if w.FilePath != "" {
+		wDir = filepath.Dir(w.FilePath)
+	} else {
+		// Fallback: try data/wiki/{title}/
+		candidate := filepath.Join(wikiDir, w.Title)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			wDir = candidate
+		}
+	}
 
 	md := "# " + w.Title + "\n\n"
 	md += "- Category: " + w.Category + "\n"
@@ -342,7 +363,7 @@ func ExportWiki(c *gin.Context) {
 		md += "- Tags: " + joinStrings(w.Tags, ", ") + "\n"
 	}
 	md += "- Created: " + w.CreatedAt.Format("2006-01-02 15:04:05") + "\n\n"
-	md += w.Content
+	md += embedImages(w.Content, wDir)
 
 	if format == "md" {
 		c.Header("Content-Disposition", "attachment; filename=wiki-"+strconv.FormatInt(id, 10)+".md")
@@ -359,7 +380,7 @@ func scanWikis(rows *sql.Rows) []model.Wiki {
 	for rows.Next() {
 		var w model.Wiki
 		var tagsStr string
-		rows.Scan(&w.ID, &w.Title, &w.Category, &tagsStr, &w.Content, &w.Source, &w.FilePath, &w.CreatedAt, &w.UpdatedAt)
+			rows.Scan(&w.ID, &w.Title, &w.Category, &tagsStr, &w.Content, &w.Source, &w.FilePath, &w.BSPModuleID, &w.CreatedAt, &w.UpdatedAt)
 		json.Unmarshal([]byte(tagsStr), &w.Tags)
 		wikis = append(wikis, w)
 	}
@@ -370,6 +391,10 @@ func applyWikiFilters(query string, args []any, f model.WikiFilter) (string, []a
 	if f.Category != "" {
 		query += " AND category = ?"
 		args = append(args, f.Category)
+	}
+	if f.BSPModuleID != 0 {
+		query += " AND bsp_module_id = ?"
+		args = append(args, f.BSPModuleID)
 	}
 	return query, args
 }

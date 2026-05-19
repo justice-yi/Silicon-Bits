@@ -208,6 +208,8 @@ func migrate() error {
 	// Migrate existing tables: add columns that may be missing
 	DB.Exec("ALTER TABLE wikis ADD COLUMN file_path TEXT DEFAULT ''")
 	DB.Exec("ALTER TABLE bugs ADD COLUMN content TEXT DEFAULT ''")
+	DB.Exec("ALTER TABLE wikis ADD COLUMN bsp_module_id INTEGER REFERENCES bsp_modules(id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_wikis_bsp ON wikis(bsp_module_id)")
 
 	// Migrate old 4-field bugs into unified content
 	migrateBugContent()

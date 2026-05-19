@@ -28,7 +28,6 @@ export default function NewBugPage() {
   const [modules, setModules] = createSignal<BSPModule[]>([])
   const [saving, setSaving] = createSignal(false)
   const [tags, setTags] = createSignal<string[]>([])
-  // bugId starts null; auto-created on first image upload
   const [bugId, setBugId] = createSignal<number | null>(null)
 
   const [form, setForm] = createSignal({
@@ -51,14 +50,12 @@ export default function NewBugPage() {
     setForm({ ...form(), [key]: value })
   }
 
-  // Auto-create bug (draft) so we get an ID for image uploads
   const ensureBugCreated = async (): Promise<number> => {
     const existing = bugId()
     if (existing) return existing
 
     const f = form()
     if (!f.title) {
-      // Auto-generate a temp title
       update('title', 'Untitled Bug')
     }
 
@@ -84,7 +81,6 @@ export default function NewBugPage() {
     try {
       const existingId = bugId()
       if (existingId) {
-        // Bug already created (via image upload), just update
         const f = form()
         const data: any = {
           title: f.title,
@@ -131,7 +127,6 @@ export default function NewBugPage() {
       </div>
 
       <form onSubmit={save} class="space-y-5">
-        {/* Title */}
         <div>
           <label class="block text-xs text-gray-500 mb-1.5 font-medium">Title *</label>
           <input
@@ -144,7 +139,6 @@ export default function NewBugPage() {
           />
         </div>
 
-        {/* Meta row */}
         <div class="grid grid-cols-3 gap-4">
           <div>
             <label class="block text-xs text-gray-500 mb-1.5 font-medium">BSP Module</label>
@@ -194,7 +188,6 @@ export default function NewBugPage() {
           </div>
         </div>
 
-        {/* SoC + Tags */}
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs text-gray-500 mb-1.5 font-medium">SoC</label>
@@ -212,7 +205,6 @@ export default function NewBugPage() {
           </div>
         </div>
 
-        {/* Unified Content Editor with image support */}
         <div>
           <label class="block text-xs text-gray-500 mb-1.5 font-medium">Content * (Markdown)</label>
           <ImageDropZone
@@ -226,7 +218,6 @@ export default function NewBugPage() {
           <div class="text-xs text-gray-600 mt-1">Paste, drag & drop, or click + Image to insert images</div>
         </div>
 
-        {/* Submit */}
         <div class="flex gap-3 pt-2">
           <button
             type="submit"

@@ -7,6 +7,8 @@ interface Wiki {
   id: number
   title: string
   category: string
+  bsp_module_id: number | null
+  bsp_module_name: string
   tags: string[]
   content: string
   source: string
@@ -27,6 +29,7 @@ export default function WikisPage() {
     params.set('page', String(p))
     params.set('page_size', '20')
     if (searchParams.category) params.set('category', searchParams.category)
+    if (searchParams.module) params.set('module', searchParams.module)
     if (searchParams.q) params.set('q', searchParams.q)
 
     wikis.list(params.toString())
@@ -41,9 +44,10 @@ export default function WikisPage() {
 
   onMount(() => fetchWikis(1))
 
-  // Re-fetch when search params change (category filter from sidebar)
+  // Re-fetch when search params change (category/module filter from sidebar)
   createEffect(() => {
     const cat = searchParams.category
+    const mod = searchParams.module
     const q = searchParams.q
     fetchWikis(1)
   })
@@ -60,23 +64,33 @@ export default function WikisPage() {
     <div>
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h2 class="text-xl font-semibold text-white">Wiki</h2>
+          <h2 class="text-xl font-semibold text-white">
+            Wiki
+            <Show when={searchParams.module}>
+              <span class="text-secondary ml-2 text-base font-normal">/ Filtered</span>
+            </Show>
+            <Show when={searchParams.category && !searchParams.module}>
+              <span class="text-secondary ml-2 text-base font-normal">/ {categoryLabel[searchParams.category] || searchParams.category}</span>
+            </Show>
+          </h2>
           <p class="text-sm text-gray-500 mt-1">{total()} articles</p>
         </div>
-        <Show when={searchParams.category}>
+        <div class="flex items-center gap-2">
+          <Show when={searchParams.category || searchParams.module || searchParams.q}>
+            <button
+              onClick={() => navigate('/wikis')}
+              class="text-xs text-gray-500 hover:text-accent transition border border-border/30 px-3 py-1.5 rounded-lg"
+            >
+              Clear filter
+            </button>
+          </Show>
           <button
-            onClick={() => navigate('/wikis')}
-            class="text-xs text-gray-500 hover:text-accent transition"
+            onClick={() => { request('/wikis/scan', { method: 'POST' }).then(() => fetchWikis(1)) }}
+            class="px-3 py-1.5 text-xs bg-surface border border-border/30 rounded-lg text-gray-400 hover:text-accent transition"
           >
-            Clear filter
+            Scan .md Files
           </button>
-        </Show>
-        <button
-          onClick={() => { request('/wikis/scan', { method: 'POST' }).then(() => fetchWikis(1)) }}
-          class="px-3 py-1.5 text-xs bg-surface border border-border/30 rounded-lg text-gray-400 hover:text-accent transition"
-        >
-          Scan .md Files
-        </button>
+        </div>
       </div>
 
       <Show when={!loading()} fallback={
@@ -104,6 +118,11 @@ export default function WikisPage() {
                     <span class="px-2 py-0.5 text-[10px] bg-secondary/10 text-secondary border border-secondary/20 rounded font-mono">
                       {categoryLabel[wiki.category] || wiki.category}
                     </span>
+                    <Show when={wiki.bsp_module_name}>
+                      <span class="px-2 py-0.5 text-[10px] bg-accent/10 text-accent border border-accent/20 rounded font-mono">
+                        {wiki.bsp_module_name}
+                      </span>
+                    </Show>
                     <Show when={wiki.source === 'notion-import'}>
                       <span class="px-1.5 py-0.5 text-[10px] bg-surface text-gray-500 rounded">Notion</span>
                     </Show>

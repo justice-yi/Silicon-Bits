@@ -57,5 +57,8 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 		// BSP Module Tree
 		api.GET("/bsp/tree", handler.BSPTree)
+			api.POST("/bsp/modules", handler.CreateBSPModule)
+			api.PUT("/bsp/modules/:id", handler.UpdateBSPModule)
+			api.DELETE("/bsp/modules/:id", handler.DeleteBSPModule)
 	}
 }

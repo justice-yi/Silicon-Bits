@@ -20,19 +20,21 @@ export default function ImageDropZone(props: Props) {
   let textareaRef: HTMLTextAreaElement | undefined
   let fileInputRef: HTMLInputElement | undefined
 
-  // Auto-resize whenever content changes (including initial load)
+  // Auto-resize on programmatic value changes (initial load, external updates).
+  // Skip when textarea has focus — the onInput handler already calls autoResize.
   createEffect(() => {
     const val = props.value
-    if (textareaRef) {
-      queueMicrotask(() => {
-        if (textareaRef) autoResize(textareaRef)
-      })
+    if (textareaRef && document.activeElement !== textareaRef) {
+      autoResize(textareaRef)
     }
   })
 
   const autoResize = (el: HTMLTextAreaElement) => {
+    const scroller = el.closest('main')
+    const scrollTop = scroller?.scrollTop ?? 0
     el.style.height = 'auto'
     el.style.height = el.scrollHeight + 'px'
+    if (scroller) scroller.scrollTop = scrollTop
   }
 
   const insertMarkdown = (markdown: string) => {
@@ -51,6 +53,30 @@ export default function ImageDropZone(props: Props) {
     } else {
       props.onInput(props.value + '\n' + markdown)
     }
+  }
+
+  const wrapSelection = (prefix: string, suffix: string, placeholder = 'text') => {
+    const ta = textareaRef
+    if (!ta) return
+    const start = ta.selectionStart
+    const end = ta.selectionEnd
+    const selected = ta.value.substring(start, end)
+    const text = selected || placeholder
+    // Use execCommand so the browser modifies the textarea directly (like typing).
+    // This preserves scroll position and the native undo stack.
+    ta.focus()
+    ta.setSelectionRange(start, end)
+    document.execCommand('insertText', false, prefix + text + suffix)
+    ta.setSelectionRange(start + prefix.length, start + prefix.length + text.length)
+  }
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return
+    const key = e.key.toLowerCase()
+    if (key === 'b') { e.preventDefault(); wrapSelection('**', '**') }
+    else if (key === 'i') { e.preventDefault(); wrapSelection('*', '*') }
+    else if (key === 'k') { e.preventDefault(); wrapSelection('<u>', '</u>') }
+    // Ctrl+Z is handled natively by the browser
   }
 
   // Ensure we have an article ID; auto-create if onNeedId is provided
@@ -223,6 +249,7 @@ export default function ImageDropZone(props: Props) {
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
+        onKeyDown={handleKeyDown}
         placeholder={props.placeholder}
         rows={1}
         class={`${props.class || ''} min-h-[200px] ${dragOver() ? 'border-accent/60 ring-1 ring-accent/30' : ''}`}

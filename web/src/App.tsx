@@ -1,6 +1,7 @@
 import { JSX, Show, createSignal } from 'solid-js'
 import { setCredentials, getCredentials } from './api/client'
 import Layout from './components/Layout'
+import { ThemeProvider } from './components/ThemeProvider'
 
 export default function App(props: { children: JSX.Element }) {
   const [authed, setAuthed] = createSignal(!!getCredentials())
@@ -28,6 +29,7 @@ export default function App(props: { children: JSX.Element }) {
   }
 
   return (
+    <ThemeProvider>
     <Show
       when={authed()}
       fallback={
@@ -70,5 +72,6 @@ export default function App(props: { children: JSX.Element }) {
         {props.children}
       </Layout>
     </Show>
+    </ThemeProvider>
   )
 }

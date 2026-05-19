@@ -55,6 +55,11 @@ export const search = (q: string, type = 'all') => request(`/search?q=${encodeUR
 
 // BSP Tree
 export const bspTree = () => request('/bsp/tree')
+export const bspModules = {
+  create: (data: any) => request('/bsp/modules', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: any) => request(`/bsp/modules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: number) => request(`/bsp/modules/${id}`, { method: 'DELETE' }),
+}
 
 // Stats
 export const stats = () => request('/stats')

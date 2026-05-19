@@ -9,4 +9,5 @@ type BSPModule struct {
 	SortOrder int          `json:"sort_order"`
 	Children  []BSPModule  `json:"children,omitempty"`
 	BugCount  int          `json:"bug_count"`
+	WikiCount int          `json:"wiki_count"`
 }

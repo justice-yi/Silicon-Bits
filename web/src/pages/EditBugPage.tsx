@@ -31,12 +31,9 @@ export default function EditBugPage() {
   createEffect(() => {
     const id = params.id
     if (!id) return
-
     setErrMsg('')
     setLoaded(false)
-
     const auth = getCredentials() || ''
-
     Promise.all([
       fetch(`/api/bugs/${id}`, { headers: { Authorization: auth } }).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -57,38 +54,24 @@ export default function EditBugPage() {
         setTags(data.tags || [])
         setLoaded(true)
       })
-      .catch((err) => {
-        setErrMsg(err.message || 'Failed to load')
-        setLoaded(true)
-      })
+      .catch((err) => { setErrMsg(err.message || 'Failed to load'); setLoaded(true) })
   })
 
-  const update = (key: string, value: string) => {
-    setForm({ ...form(), [key]: value })
-  }
+  const update = (key: string, value: string) => setForm({ ...form(), [key]: value })
 
   const save = async (e: Event) => {
     e.preventDefault()
     setSaving(true)
     try {
       const f = form()
-      const data: any = {
-        title: f.title,
-        severity: f.severity,
-        content: f.content,
-        tags: tags(),
-      }
+      const data: any = { title: f.title, severity: f.severity, content: f.content, tags: tags() }
       if (f.bsp_module_id) data.bsp_module_id = Number(f.bsp_module_id)
       if (f.kernel_version) data.kernel_version = f.kernel_version
       if (f.soc) data.soc = f.soc
-
       await bugs.update(Number(params.id), data)
       navigate(`/bugs/${params.id}`)
-    } catch (err: any) {
-      alert('Save failed: ' + (err?.message || 'unknown error'))
-    } finally {
-      setSaving(false)
-    }
+    } catch (err: any) { alert('Save failed: ' + (err?.message || 'unknown error')) }
+    finally { setSaving(false) }
   }
 
   return (
@@ -101,37 +84,30 @@ export default function EditBugPage() {
             <h2 class="text-xl font-semibold text-white">Edit Bug</h2>
             <button onClick={() => navigate(-1 as any)} class="text-sm text-gray-500 hover:text-accent transition">Cancel</button>
           </div>
-
           <form onSubmit={save} class="space-y-5">
             <div>
               <label class="block text-sm text-gray-400 mb-1.5 font-medium">Title *</label>
               <input type="text" value={form().title} onInput={(e) => update('title', e.currentTarget.value)}
                 class="w-full bg-surface border border-border/30 rounded-lg px-4 py-3 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition" required />
             </div>
-
             <div class="grid grid-cols-3 gap-4">
               <div>
                 <label class="block text-sm text-gray-400 mb-1.5 font-medium">BSP Module</label>
                 <select value={form().bsp_module_id} onChange={(e) => update('bsp_module_id', e.currentTarget.value)}
                   class="w-full bg-surface border border-border/30 rounded-lg px-3 py-3 text-gray-300 focus:outline-none focus:border-accent/40 transition">
                   <option value="">-- None --</option>
-                  <For each={modules()}>
-                    {(mod) => (
-                      <optgroup label={mod.name}>
-                        <For each={mod.children || []}>{(child) => <option value={child.id}>{child.name}</option>}</For>
-                      </optgroup>
-                    )}
-                  </For>
+                  <For each={modules()}>{(mod) => (
+                    <optgroup label={mod.name}>
+                      <For each={mod.children || []}>{(child) => <option value={child.id}>{child.name}</option>}</For>
+                    </optgroup>
+                  )}</For>
                 </select>
               </div>
               <div>
                 <label class="block text-sm text-gray-400 mb-1.5 font-medium">Severity</label>
                 <select value={form().severity} onChange={(e) => update('severity', e.currentTarget.value)}
                   class="w-full bg-surface border border-border/30 rounded-lg px-3 py-3 text-gray-300 focus:outline-none focus:border-accent/40 transition">
-                  <option value="critical">Critical</option>
-                  <option value="major">Major</option>
-                  <option value="minor">Minor</option>
-                  <option value="cosmetic">Cosmetic</option>
+                  <option value="critical">Critical</option><option value="major">Major</option><option value="minor">Minor</option><option value="cosmetic">Cosmetic</option>
                 </select>
               </div>
               <div>
@@ -140,7 +116,6 @@ export default function EditBugPage() {
                   class="w-full bg-surface border border-border/30 rounded-lg px-3 py-3 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition" />
               </div>
             </div>
-
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm text-gray-400 mb-1.5 font-medium">SoC</label>
@@ -152,30 +127,22 @@ export default function EditBugPage() {
                 <TagInput tags={tags()} onChange={setTags} placeholder="Press Enter to add tag" />
               </div>
             </div>
-
-            {/* Unified content editor */}
             <div>
               <label class="block text-sm text-gray-400 mb-1.5 font-medium">Content * (Markdown)</label>
               <ImageDropZone
-                value={form().content}
-                onInput={(val: string) => update('content', val)}
-                articleType="bug"
-                articleId={Number(params.id)}
-                
+                value={form().content} onInput={(val: string) => update('content', val)}
+                articleType="bug" articleId={Number(params.id)}
                 class="w-full bg-surface border border-border/30 rounded-lg px-4 py-3 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition font-mono text-sm overflow-hidden"
               />
               <div class="text-xs text-gray-600 mt-1">Paste or drag images directly into the editor</div>
             </div>
-
             <div class="flex gap-3 pt-2">
               <button type="submit" disabled={saving()}
                 class="px-6 py-2.5 bg-accent/10 border border-accent/30 text-accent rounded-lg font-medium hover:bg-accent/20 transition-all disabled:opacity-50">
                 {saving() ? 'Saving...' : 'Save Changes'}
               </button>
               <button type="button" onClick={() => navigate(-1 as any)}
-                class="px-6 py-2.5 bg-surface border border-border/30 rounded-lg text-gray-400 hover:text-gray-200 transition">
-                Cancel
-              </button>
+                class="px-6 py-2.5 bg-surface border border-border/30 rounded-lg text-gray-400 hover:text-gray-200 transition">Cancel</button>
             </div>
           </form>
         </div>

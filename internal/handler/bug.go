@@ -391,7 +391,7 @@ func ExportBug(c *gin.Context) {
 			md += "- Tags: " + joinStrings(b.Tags, ", ") + "\n"
 		}
 		md += "- Created: " + b.CreatedAt.Format("2006-01-02 15:04:05") + "\n\n"
-		md += b.Content
+		md += embedImages(b.Content, "")
 	}
 
 	if format == "md" {

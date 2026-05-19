@@ -3,6 +3,7 @@ import { useParams, useNavigate } from '@solidjs/router'
 import { bugs, getCredentials } from '../api/client'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import WikiTOC from '../components/WikiTOC'
+import { exportPdf } from '../components/PdfExport'
 
 interface LinkedWiki {
   id: number
@@ -59,17 +60,6 @@ export default function BugDetailPage() {
     return map[s] || 'badge-minor'
   }
 
-  const handleExport = async () => {
-    const res = await fetch(`/api/bugs/${params.id}/export?format=md`, {
-      headers: { Authorization: getCredentials() || '' }
-    })
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `bug-${params.id}.md`; a.click()
-    URL.revokeObjectURL(url)
-  }
-
   const handleDelete = async () => {
     if (!confirm('Delete this bug record? This cannot be undone.')) return
     try {
@@ -92,7 +82,7 @@ export default function BugDetailPage() {
           const hasTOC = b.content?.split('\n').filter(l => /^#{2,6}\s/.test(l)).length > 2
 
           return (
-            <div class="w-full">
+            <div class="w-full" id="bug-content">
               {/* Header */}
               <div class="flex items-center justify-between mb-6">
                 <button
@@ -109,10 +99,15 @@ export default function BugDetailPage() {
                     Edit
                   </button>
                   <button
-                    onClick={handleExport}
+                    onClick={() => exportPdf({
+                      title: b.title,
+                      meta: `${b.severity}${b.soc ? ' | ' + b.soc : ''}${b.tags?.length ? ' | ' + b.tags.join(', ') : ''} | ${new Date(b.created_at).toLocaleDateString()}`,
+                      contentId: 'bug-md-content',
+                      filename: `bug-${params.id}.pdf`
+                    })}
                     class="px-3 py-1.5 text-xs bg-accent/10 border border-accent/20 rounded-lg text-accent hover:bg-accent/20 transition"
                   >
-                    Export .md
+                    Export PDF
                   </button>
                   <button
                     onClick={handleDelete}
@@ -158,7 +153,7 @@ export default function BugDetailPage() {
                 <div class="flex-1 min-w-0">
                   <Show when={b.content}>
                     <div class="bg-card border border-border/30 rounded-xl p-6 mb-6">
-                      <MarkdownRenderer content={b.content} />
+                      <div id="bug-md-content"><MarkdownRenderer content={b.content} /></div>
                     </div>
                   </Show>
 

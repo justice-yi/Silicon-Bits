@@ -2,6 +2,196 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========================================
+   Theme System — CSS Variable Presets
+   Colors defined as R G B triplets for
+   Tailwind opacity modifier support.
+   ======================================== */
+
+/* Default: Matrix (green terminal) */
+:root,
+.theme-matrix {
+  --color-bg: 10 14 23;
+  --color-card: 17 24 39;
+  --color-card-hover: 26 35 50;
+  --color-accent: 0 255 136;
+  --color-accent-dim: 0 204 106;
+  --color-secondary: 56 189 248;
+  --color-danger: 239 68 68;
+  --color-warning: 245 158 11;
+  --color-surface: 30 41 59;
+  --color-border: 30 58 95;
+  --color-grid: rgba(30, 58, 95, 0.15);
+  --color-glow: rgba(0, 255, 136, 0.3);
+}
+
+.theme-cyberpunk {
+  --color-bg: 10 0 14;
+  --color-card: 21 8 32;
+  --color-card-hover: 31 15 48;
+  --color-accent: 255 45 149;
+  --color-accent-dim: 204 36 119;
+  --color-secondary: 0 240 255;
+  --color-danger: 255 51 51;
+  --color-warning: 255 225 86;
+  --color-surface: 26 10 40;
+  --color-border: 58 16 85;
+  --color-grid: rgba(58, 16, 85, 0.2);
+  --color-glow: rgba(255, 45, 149, 0.35);
+}
+
+.theme-dracula {
+  --color-bg: 40 42 54;
+  --color-card: 51 53 68;
+  --color-card-hover: 61 63 80;
+  --color-accent: 189 147 249;
+  --color-accent-dim: 154 104 224;
+  --color-secondary: 139 233 253;
+  --color-danger: 255 85 85;
+  --color-warning: 241 250 140;
+  --color-surface: 56 58 74;
+  --color-border: 68 71 90;
+  --color-grid: rgba(68, 71, 90, 0.2);
+  --color-glow: rgba(189, 147, 249, 0.3);
+}
+
+.theme-tokyo-night {
+  --color-bg: 26 27 38;
+  --color-card: 36 40 59;
+  --color-card-hover: 46 50 74;
+  --color-accent: 122 162 247;
+  --color-accent-dim: 91 135 219;
+  --color-secondary: 125 207 255;
+  --color-danger: 247 118 142;
+  --color-warning: 224 175 104;
+  --color-surface: 31 35 53;
+  --color-border: 59 66 97;
+  --color-grid: rgba(59, 66, 97, 0.2);
+  --color-glow: rgba(122, 162, 247, 0.3);
+}
+
+.theme-nord {
+  --color-bg: 46 52 64;
+  --color-card: 59 66 82;
+  --color-card-hover: 67 76 94;
+  --color-accent: 136 192 208;
+  --color-accent-dim: 111 163 179;
+  --color-secondary: 129 161 193;
+  --color-danger: 191 97 106;
+  --color-warning: 235 203 139;
+  --color-surface: 53 58 71;
+  --color-border: 76 86 106;
+  --color-grid: rgba(76, 86, 106, 0.15);
+  --color-glow: rgba(136, 192, 208, 0.25);
+}
+
+.theme-catppuccin {
+  --color-bg: 30 30 46;
+  --color-card: 38 38 55;
+  --color-card-hover: 48 47 68;
+  --color-accent: 203 166 247;
+  --color-accent-dim: 168 125 224;
+  --color-secondary: 137 220 235;
+  --color-danger: 243 139 168;
+  --color-warning: 249 226 175;
+  --color-surface: 35 35 54;
+  --color-border: 69 71 90;
+  --color-grid: rgba(69, 71, 90, 0.18);
+  --color-glow: rgba(203, 166, 247, 0.3);
+}
+
+.theme-gruvbox {
+  --color-bg: 40 40 40;
+  --color-card: 60 56 54;
+  --color-card-hover: 74 69 66;
+  --color-accent: 250 189 47;
+  --color-accent-dim: 212 160 37;
+  --color-secondary: 131 165 152;
+  --color-danger: 251 73 52;
+  --color-warning: 254 128 25;
+  --color-surface: 50 48 47;
+  --color-border: 80 73 69;
+  --color-grid: rgba(80, 73, 69, 0.2);
+  --color-glow: rgba(250, 189, 47, 0.3);
+}
+
+.theme-monokai {
+  --color-bg: 30 31 28;
+  --color-card: 39 40 34;
+  --color-card-hover: 51 52 45;
+  --color-accent: 230 219 116;
+  --color-accent-dim: 196 186 94;
+  --color-secondary: 102 217 239;
+  --color-danger: 249 38 114;
+  --color-warning: 253 151 31;
+  --color-surface: 35 36 31;
+  --color-border: 62 61 50;
+  --color-grid: rgba(62, 61, 50, 0.2);
+  --color-glow: rgba(230, 219, 116, 0.3);
+}
+
+.theme-solarized-dark {
+  --color-bg: 0 43 54;
+  --color-card: 7 54 66;
+  --color-card-hover: 10 64 80;
+  --color-accent: 38 139 210;
+  --color-accent-dim: 30 111 168;
+  --color-secondary: 42 161 152;
+  --color-danger: 220 50 47;
+  --color-warning: 181 137 0;
+  --color-surface: 5 48 56;
+  --color-border: 10 80 96;
+  --color-grid: rgba(10, 80, 96, 0.2);
+  --color-glow: rgba(38, 139, 210, 0.3);
+}
+
+.theme-ocean {
+  --color-bg: 11 17 32;
+  --color-card: 17 29 53;
+  --color-card-hover: 24 40 69;
+  --color-accent: 45 212 191;
+  --color-accent-dim: 34 168 153;
+  --color-secondary: 96 165 250;
+  --color-danger: 248 113 113;
+  --color-warning: 251 191 36;
+  --color-surface: 15 26 46;
+  --color-border: 30 58 95;
+  --color-grid: rgba(30, 58, 95, 0.18);
+  --color-glow: rgba(45, 212, 191, 0.3);
+}
+
+.theme-sunset {
+  --color-bg: 26 14 10;
+  --color-card: 38 24 17;
+  --color-card-hover: 51 32 26;
+  --color-accent: 251 146 60;
+  --color-accent-dim: 217 117 32;
+  --color-secondary: 251 191 36;
+  --color-danger: 239 68 68;
+  --color-warning: 249 115 22;
+  --color-surface: 31 20 16;
+  --color-border: 74 42 26;
+  --color-grid: rgba(74, 42, 26, 0.2);
+  --color-glow: rgba(251, 146, 60, 0.3);
+}
+
+.theme-rose-pine {
+  --color-bg: 25 23 36;
+  --color-card: 31 29 46;
+  --color-card-hover: 40 38 58;
+  --color-accent: 196 167 231;
+  --color-accent-dim: 160 128 201;
+  --color-secondary: 156 207 216;
+  --color-danger: 235 111 146;
+  --color-warning: 246 193 119;
+  --color-surface: 27 26 40;
+  --color-border: 38 35 58;
+  --color-grid: rgba(38, 35, 58, 0.2);
+  --color-glow: rgba(196, 167, 231, 0.3);
+}
+
+/* ======================================== */
+
 @layer base {
   html, body, #root {
     height: 100%;
@@ -35,9 +225,9 @@
 }
 
 @layer components {
-  /* Terminal-style green glow for accent elements */
+  /* Glow effect — adapts to theme */
   .glow-green {
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+    text-shadow: 0 0 10px var(--color-glow);
   }
 
   /* Card with subtle border glow on hover */
@@ -45,7 +235,8 @@
     @apply border border-border/50 transition-all duration-200;
   }
   .card-glow:hover {
-    @apply border-accent/30 shadow-[0_0_15px_rgba(0,255,136,0.05)];
+    @apply border-accent/30;
+    box-shadow: 0 0 15px var(--color-glow);
   }
 
   /* Markdown content styling */
@@ -85,16 +276,16 @@
   .badge-minor { @apply bg-secondary/20 text-secondary border-secondary/30; }
   .badge-cosmetic { @apply bg-gray-500/20 text-gray-400 border-gray-500/30; }
 
-  /* Subtle grid background */
+  /* Grid background — adapts to theme */
   .grid-bg {
     background-image:
-      linear-gradient(rgba(30, 58, 95, 0.15) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(30, 58, 95, 0.15) 1px, transparent 1px);
+      linear-gradient(var(--color-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
     background-size: 40px 40px;
   }
 }
 
-/* Highlight.js overrides for dark theme */
+/* Highlight.js overrides */
 .hljs {
   @apply bg-surface text-gray-300;
 }

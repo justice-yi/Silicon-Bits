@@ -4,6 +4,8 @@ import { wikis } from '../api/client'
 import { getCredentials } from '../api/client'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import WikiTOC from '../components/WikiTOC'
+import { exportPdf } from '../components/PdfExport'
+import { copyForWeChat } from '../components/CopyForWeChat'
 
 interface BugBrief {
   id: number
@@ -43,18 +45,6 @@ export default function WikiDetailPage() {
       setLoading(false)
     }
   })
-
-  const handleExport = async () => {
-    const auth = getCredentials() || ''
-    const res = await fetch(`/api/wikis/${params.id}/export?format=md`, {
-      headers: { Authorization: auth }
-    })
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `wiki-${params.id}.md`; a.click()
-    URL.revokeObjectURL(url)
-  }
 
   const handleDelete = async () => {
     if (!confirm('Delete this wiki article and all its images? This cannot be undone.')) return
@@ -98,7 +88,7 @@ export default function WikiDetailPage() {
           }
 
           return (
-            <div class="w-full">
+            <div class="w-full" id="wiki-content">
               {/* Header */}
               <div class="flex items-center justify-between mb-6">
                 <button
@@ -115,10 +105,21 @@ export default function WikiDetailPage() {
                     Edit
                   </button>
                   <button
-                    onClick={handleExport}
+                    onClick={() => exportPdf({
+                      title: w.title,
+                      meta: `${categoryLabel[w.category] || w.category}${w.tags?.length ? ' | ' + w.tags.join(', ') : ''} | ${new Date(w.created_at).toLocaleDateString()}`,
+                      contentId: 'wiki-md-content',
+                      filename: `wiki-${params.id}.pdf`
+                    })}
                     class="px-3 py-1.5 text-xs bg-secondary/10 border border-secondary/20 rounded-lg text-secondary hover:bg-secondary/20 transition"
                   >
-                    Export .md
+                    Export PDF
+                  </button>
+                  <button
+                    onClick={() => copyForWeChat({ title: w.title, contentId: 'wiki-md-content' })}
+                    class="px-3 py-1.5 text-xs bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 hover:bg-green-500/20 transition"
+                  >
+                    Copy for WeChat
                   </button>
                   <button
                     onClick={handleDelete}
@@ -157,7 +158,7 @@ export default function WikiDetailPage() {
                 {/* Main content */}
                 <div class="flex-1 min-w-0">
                   <div class="bg-card border border-border/30 rounded-xl p-6 mb-6">
-                    <MarkdownRenderer content={w.content} imageBasePath={imgBase} />
+                    <div id="wiki-md-content"><MarkdownRenderer content={w.content} imageBasePath={imgBase} /></div>
                   </div>
 
                   {/* Linked Bugs */}

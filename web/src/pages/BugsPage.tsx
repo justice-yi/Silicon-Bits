@@ -1,6 +1,7 @@
 import { createSignal, onMount, For, Show } from 'solid-js'
 import { useNavigate, useSearchParams } from '@solidjs/router'
-import { bugs } from '../api/client'
+import { bugs, bspTree } from '../api/client'
+import { onCleanup } from 'solid-js'
 
 interface Bug {
   id: number
@@ -14,13 +15,31 @@ interface Bug {
   background: string
 }
 
+interface BSPModule {
+  id: number
+  name: string
+  slug: string
+  icon: string
+  bug_count: number
+  wiki_count: number
+  children?: BSPModule[]
+}
+
 export default function BugsPage() {
   const [bugList, setBugList] = createSignal<Bug[]>([])
   const [total, setTotal] = createSignal(0)
   const [page, setPage] = createSignal(1)
   const [loading, setLoading] = createSignal(true)
+  const [bspModules, setBspModules] = createSignal<BSPModule[]>([])
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  onMount(async () => {
+    try {
+      const data = await bspTree()
+      setBspModules(data as BSPModule[])
+    } catch {}
+  })
 
   const fetchBugs = (p = 1) => {
     setLoading(true)
@@ -41,16 +60,13 @@ export default function BugsPage() {
       .finally(() => setLoading(false))
   }
 
-  // Create a reactive effect on searchParams
   onMount(() => fetchBugs(1))
 
-  // Re-fetch when searchParams change (module filter from sidebar)
   const prevModule = () => searchParams.module
   const prevQ = () => searchParams.q
   let lastModule: string | undefined
   let lastQ: string | undefined
 
-  // Check every tick for param changes
   const interval = setInterval(() => {
     const m = prevModule()
     const q = prevQ()
@@ -60,7 +76,6 @@ export default function BugsPage() {
       fetchBugs(1)
     }
   }, 300)
-  // Clean up on page destroy (SolidJS doesn't have onUnmount, use onCleanup)
   import('solid-js').then(({ onCleanup }) => onCleanup(() => clearInterval(interval)))
 
   const severityColor = (s: string) => {
@@ -71,6 +86,28 @@ export default function BugsPage() {
       cosmetic: 'badge-cosmetic',
     }
     return map[s] || 'badge-minor'
+  }
+
+  const flatModules = () => {
+    const result: { id: number; name: string; indent: boolean }[] = []
+    for (const mod of bspModules()) {
+      result.push({ id: mod.id, name: mod.name, indent: false })
+      if (mod.children) {
+        for (const child of mod.children) {
+          result.push({ id: child.id, name: child.name, indent: true })
+        }
+      }
+    }
+    return result
+  }
+
+  const handleModuleChange = (e: Event) => {
+    const val = (e.currentTarget as HTMLSelectElement).value
+    if (val) {
+      setSearchParams({ module: val })
+    } else {
+      setSearchParams({ module: undefined as any })
+    }
   }
 
   return (
@@ -85,14 +122,28 @@ export default function BugsPage() {
           </h2>
           <p class="text-sm text-gray-500 mt-1">{total()} records</p>
         </div>
-        <Show when={searchParams.module || searchParams.q}>
-          <button
-            onClick={() => navigate('/bugs')}
-            class="text-xs text-gray-500 hover:text-accent transition border border-border/30 px-3 py-1.5 rounded-lg"
+        <div class="flex items-center gap-2">
+          <select
+            value={searchParams.module || ''}
+            onChange={handleModuleChange}
+            class="bg-surface border border-border/30 rounded-lg px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-accent/40 transition"
           >
-            Clear filter
-          </button>
-        </Show>
+            <option value="">All Modules</option>
+            <For each={flatModules()}>
+              {(mod) => (
+                <option value={String(mod.id)}>{mod.indent ? `  └ ${mod.name}` : mod.name}</option>
+              )}
+            </For>
+          </select>
+          <Show when={searchParams.module || searchParams.q}>
+            <button
+              onClick={() => setSearchParams({ module: undefined as any, q: undefined as any })}
+              class="text-xs text-gray-500 hover:text-accent transition border border-border/30 px-3 py-1.5 rounded-lg"
+            >
+              Clear filter
+            </button>
+          </Show>
+        </div>
       </div>
 
       <Show when={!loading()} fallback={
