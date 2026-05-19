@@ -190,8 +190,13 @@ func uploadWikiImageFile(c *gin.Context, wikiID string, origName string, ext str
 	dst.Write(head)
 	io.Copy(dst, rest)
 
+	wikiRootAbs, _ := filepath.Abs(GetWikiDir())
+	wikiDirAbs, _ := filepath.Abs(wikiDir)
+	wikiRelDir, _ := filepath.Rel(wikiRootAbs, wikiDirAbs)
+	imgURL := "/wiki/" + wikiRelDir + "/pic/" + filename
+
 	c.JSON(http.StatusCreated, gin.H{
-		"url":      "pic/" + filename,
+		"url":      imgURL,
 		"filename": origName,
 	})
 }

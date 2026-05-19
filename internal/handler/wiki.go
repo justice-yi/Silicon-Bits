@@ -122,6 +122,9 @@ func GetWiki(c *gin.Context) {
 		}
 	}
 
+	// Convert relative image URLs to absolute for editor rendering
+	w.Content = wikiRelToAbsURLs(w.Content, w.FilePath)
+
 	// Load linked bugs
 	rows, _ := database.DB.Query(
 		`SELECT b.id, b.title, b.severity, b.soc FROM bug_wiki_relations bw
@@ -235,9 +238,11 @@ func UpdateWiki(c *gin.Context) {
 		args = append(args, string(tagsJSON))
 	}
 	if req.Content != nil {
+		// Convert absolute image URLs back to relative for storage
+		relContent := wikiAbsToRelURLs(*req.Content, currentFP)
 		setClauses = append(setClauses, "content = ?")
-		args = append(args, *req.Content)
-		newContent = *req.Content
+		args = append(args, relContent)
+		newContent = relContent
 	}
 		if req.BSPModuleID != nil {
 			setClauses = append(setClauses, "bsp_module_id = ?")
@@ -402,4 +407,38 @@ func applyWikiFilters(query string, args []any, f model.WikiFilter) (string, []a
 // GetWikiDir returns the configured wiki directory
 func GetWikiDir() string {
 	return wikiDir
+}
+
+// wikiRelToAbsURLs converts relative image URLs (pic/xxx.png) to absolute URLs (/wiki/{dir}/pic/xxx.png)
+func wikiRelToAbsURLs(content string, filePath string) string {
+	if filePath == "" {
+		return content
+	}
+	wikiAssetDir := filepath.Dir(filePath)
+	wikiRootAbs, _ := filepath.Abs(wikiDir)
+	dirAbs, _ := filepath.Abs(wikiAssetDir)
+	relDir, err := filepath.Rel(wikiRootAbs, dirAbs)
+	if err != nil {
+		return content
+	}
+	prefix := "/wiki/" + relDir + "/"
+	// Replace ](pic/ with ](/wiki/{relDir}/pic/
+	return strings.ReplaceAll(content, "](pic/", "]("+prefix+"pic/")
+}
+
+// wikiAbsToRelURLs converts absolute image URLs back to relative for .md file storage
+func wikiAbsToRelURLs(content string, filePath string) string {
+	if filePath == "" {
+		return content
+	}
+	wikiAssetDir := filepath.Dir(filePath)
+	wikiRootAbs, _ := filepath.Abs(wikiDir)
+	dirAbs, _ := filepath.Abs(wikiAssetDir)
+	relDir, err := filepath.Rel(wikiRootAbs, dirAbs)
+	if err != nil {
+		return content
+	}
+	prefix := "/wiki/" + relDir + "/pic/"
+	// Replace ](/wiki/{relDir}/pic/ with ](pic/
+	return strings.ReplaceAll(content, "]("+prefix, "](pic/")
 }

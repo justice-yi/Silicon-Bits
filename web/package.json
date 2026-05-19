@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "cp -r node_modules/vditor/dist public/vditor 2>/dev/null; vite",
+    "build": "cp -r node_modules/vditor/dist public/vditor 2>/dev/null; vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,7 +14,8 @@
     "html2pdf.js": "^0.14.0",
     "marked": "^15.0.4",
     "pdf-lib": "^1.17.1",
-    "solid-js": "^1.9.3"
+    "solid-js": "^1.9.3",
+    "vditor": "^3.11.2"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",

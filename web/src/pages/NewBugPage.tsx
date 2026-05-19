@@ -2,7 +2,7 @@ import { createSignal, onMount, For } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 import { bugs, bspTree } from '../api/client'
 import TagInput from '../components/TagInput'
-import ImageDropZone from '../components/ImageDropZone'
+import MarkdownEditor from '../components/MarkdownEditor'
 
 interface BSPModule {
   id: number
@@ -207,13 +207,13 @@ export default function NewBugPage() {
 
         <div>
           <label class="block text-xs text-gray-500 mb-1.5 font-medium">Content * (Markdown)</label>
-          <ImageDropZone
+          <MarkdownEditor
             value={form().content}
             onInput={(val: string) => update('content', val)}
             articleType="bug"
             articleId={bugId()}
             onNeedId={ensureBugCreated}
-            class="w-full bg-surface border border-border/30 rounded-lg px-4 py-3 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition font-mono text-sm overflow-hidden"
+            placeholder="Describe the bug in Markdown..."
           />
           <div class="text-xs text-gray-600 mt-1">Paste, drag & drop, or click + Image to insert images</div>
         </div>

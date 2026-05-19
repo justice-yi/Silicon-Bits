@@ -1,7 +1,8 @@
-import { createSignal, createEffect, onMount, For } from 'solid-js'
+import { createSignal, onMount, For } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
 import { wikis, bspTree } from '../api/client'
 import TagInput from '../components/TagInput'
+import MarkdownEditor from '../components/MarkdownEditor'
 
 interface BSPModule {
   id: number
@@ -18,25 +19,12 @@ export default function NewWikiPage() {
   const [saving, setSaving] = createSignal(false)
   const [tags, setTags] = createSignal<string[]>([])
   const [bspModules, setBspModules] = createSignal<BSPModule[]>([])
-  let contentRef: HTMLTextAreaElement | undefined
 
   onMount(async () => {
     try {
       const data = await bspTree()
       setBspModules(data as BSPModule[])
     } catch {}
-  })
-
-  createEffect(() => {
-    const val = form().content
-    if (contentRef) {
-      queueMicrotask(() => {
-        if (contentRef) {
-          contentRef.style.height = 'auto'
-          contentRef.style.height = contentRef.scrollHeight + 'px'
-        }
-      })
-    }
   })
 
   const [form, setForm] = createSignal({
@@ -155,14 +143,12 @@ export default function NewWikiPage() {
         {/* Content */}
         <div>
           <label class="block text-xs text-gray-500 mb-1.5 font-medium">Content * (Markdown)</label>
-          <textarea
-            ref={contentRef}
+          <MarkdownEditor
             value={form().content}
-            onInput={(e) => { update('content', e.currentTarget.value); e.currentTarget.style.height='auto'; e.currentTarget.style.height=e.currentTarget.scrollHeight+'px' }}
+            onInput={(val: string) => update('content', val)}
+            articleType="wiki"
+            articleId={null}
             placeholder="Write your article in Markdown..."
-            rows={1}
-            class="w-full bg-surface border border-border/30 rounded-lg px-4 py-3 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition font-mono text-sm overflow-hidden min-h-[200px]"
-            required
           />
         </div>
 

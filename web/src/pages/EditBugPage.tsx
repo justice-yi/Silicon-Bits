@@ -3,7 +3,7 @@ import { useParams, useNavigate } from '@solidjs/router'
 import { bugs, bspTree } from '../api/client'
 import { getCredentials } from '../api/client'
 import TagInput from '../components/TagInput'
-import ImageDropZone from '../components/ImageDropZone'
+import MarkdownEditor from '../components/MarkdownEditor'
 
 interface BSPModule {
   id: number
@@ -129,10 +129,10 @@ export default function EditBugPage() {
             </div>
             <div>
               <label class="block text-sm text-gray-400 mb-1.5 font-medium">Content * (Markdown)</label>
-              <ImageDropZone
+              <MarkdownEditor
                 value={form().content} onInput={(val: string) => update('content', val)}
                 articleType="bug" articleId={Number(params.id)}
-                class="w-full bg-surface border border-border/30 rounded-lg px-4 py-3 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition font-mono text-sm overflow-hidden"
+                placeholder="Describe the bug in Markdown..."
               />
               <div class="text-xs text-gray-600 mt-1">Paste or drag images directly into the editor</div>
             </div>

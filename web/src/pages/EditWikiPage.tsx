@@ -3,7 +3,7 @@ import { useParams, useNavigate } from '@solidjs/router'
 import { wikis, bspTree } from '../api/client'
 import { getCredentials } from '../api/client'
 import TagInput from '../components/TagInput'
-import ImageDropZone from '../components/ImageDropZone'
+import MarkdownEditor from '../components/MarkdownEditor'
 
 interface BSPModule {
   id: number
@@ -154,13 +154,13 @@ export default function EditWikiPage() {
 
           {/* Content editor — fills all remaining space */}
           <div class="flex-1 min-h-0 mt-4 flex flex-col">
-            <ImageDropZone
+            <MarkdownEditor
               value={form().content}
               onInput={(val: string) => update('content', val)}
               articleType="wiki"
               articleId={Number(params.id)}
               placeholder="Write your article in Markdown..."
-              class="w-full bg-surface border border-border/30 rounded-lg px-5 py-4 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent/40 transition font-mono text-sm overflow-hidden"
+              fillHeight
             />
           </div>
         </form>

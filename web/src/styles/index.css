@@ -298,3 +298,168 @@
 .hljs-type { @apply text-purple-400; }
 .hljs-built_in { @apply text-warning; }
 .hljs-literal { @apply text-danger; }
+
+/* ========================================
+   Vditor Editor Theme Overrides
+   Adapts to the CSS variable theme system
+   ======================================== */
+
+.markdown-editor .vditor {
+  border: 1px solid rgb(var(--color-border) / 0.3) !important;
+  border-radius: 0.75rem !important;
+  background-color: transparent !important;
+}
+
+/* Toolbar */
+.markdown-editor .vditor-toolbar {
+  background-color: rgb(var(--color-card) / 0.8) !important;
+  border-bottom: 1px solid rgb(var(--color-border) / 0.3) !important;
+  border-radius: 0.75rem 0.75rem 0 0 !important;
+  padding: 4px 8px !important;
+}
+
+.markdown-editor .vditor-toolbar button {
+  color: rgb(var(--color-accent) / 0.7) !important;
+  background: transparent !important;
+  border-radius: 4px !important;
+}
+.markdown-editor .vditor-toolbar button:hover {
+  color: rgb(var(--color-accent)) !important;
+  background-color: rgb(var(--color-accent) / 0.1) !important;
+}
+.markdown-editor .vditor-toolbar .vditor-toolbar__div {
+  border-left-color: rgb(var(--color-border) / 0.3) !important;
+}
+
+/* IR editing area */
+.markdown-editor .vditor-ir {
+  background-color: rgb(var(--color-surface)) !important;
+  border-radius: 0 0 0.75rem 0.75rem !important;
+}
+.markdown-editor .vditor-ir pre.vditor-reset {
+  color: #e2e8f0 !important;
+  background-color: transparent !important;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important;
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+  max-width: 100% !important;
+  margin: 50 !important;
+  padding: 16px 24px !important;
+}
+
+/* Rendered content inside IR */
+.markdown-editor .vditor-ir .vditor-ir__marker--heading,
+.markdown-editor .vditor-ir .vditor-ir__node--heading {
+  color: #e2e8f0 !important;
+}
+.markdown-editor .vditor-ir h1,
+.markdown-editor .vditor-ir h2,
+.markdown-editor .vditor-ir h3,
+.markdown-editor .vditor-ir h4,
+.markdown-editor .vditor-ir h5,
+.markdown-editor .vditor-ir h6 {
+  color: #e2e8f0 !important;
+  border-bottom-color: rgb(var(--color-border) / 0.3) !important;
+}
+
+.markdown-editor .vditor-ir strong {
+  color: #f1f5f9 !important;
+}
+.markdown-editor .vditor-ir em {
+  color: #cbd5e1 !important;
+}
+.markdown-editor .vditor-ir a {
+  color: rgb(var(--color-secondary)) !important;
+}
+.markdown-editor .vditor-ir code {
+  color: rgb(var(--color-accent)) !important;
+  background-color: rgb(var(--color-bg)) !important;
+  border-radius: 3px !important;
+  padding: 2px 6px !important;
+  font-size: 13px !important;
+}
+.markdown-editor .vditor-ir pre code {
+  background-color: transparent !important;
+  padding: 0 !important;
+  color: #e2e8f0 !important;
+}
+.markdown-editor .vditor-ir pre {
+  background-color: rgb(var(--color-bg)) !important;
+  border: 1px solid rgb(var(--color-border) / 0.3) !important;
+  border-radius: 0.5rem !important;
+}
+.markdown-editor .vditor-ir blockquote {
+  border-left-color: rgb(var(--color-accent) / 0.5) !important;
+  color: #94a3b8 !important;
+}
+.markdown-editor .vditor-ir img {
+  border-radius: 0.5rem !important;
+  max-width: 100% !important;
+}
+.markdown-editor .vditor-ir table th {
+  background-color: rgb(var(--color-card)) !important;
+  border-color: rgb(var(--color-border) / 0.3) !important;
+  color: #94a3b8 !important;
+}
+.markdown-editor .vditor-ir table td {
+  border-color: rgb(var(--color-border) / 0.2) !important;
+}
+.markdown-editor .vditor-ir .vditor-ir__marker {
+  color: rgb(var(--color-accent) / 0.4) !important;
+}
+.markdown-editor .vditor-ir .vditor-ir__marker--bi,
+.markdown-editor .vditor-ir .vditor-ir__marker--strong {
+  color: rgb(var(--color-accent) / 0.4) !important;
+}
+.markdown-editor .vditor-ir .vditor-ir__preview {
+  background: transparent !important;
+}
+
+/* Placeholder text */
+.markdown-editor .vditor-ir pre.vditor-reset:empty::before {
+  color: #4b5563 !important;
+}
+
+/* Selection */
+.markdown-editor .vditor-ir ::selection {
+  background-color: rgb(var(--color-accent) / 0.2) !important;
+  color: rgb(var(--color-accent)) !important;
+}
+
+/* Toolbar dropdowns / popovers */
+.markdown-editor .vditor-panel {
+  background-color: rgb(var(--color-card)) !important;
+  border-color: rgb(var(--color-border) / 0.3) !important;
+}
+.markdown-editor .vditor-panel input {
+  background-color: rgb(var(--color-surface)) !important;
+  color: #e2e8f0 !important;
+  border-color: rgb(var(--color-border) / 0.3) !important;
+}
+
+/* Scrollbar inside editor */
+.markdown-editor .vditor-ir ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.markdown-editor .vditor-ir ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.markdown-editor .vditor-ir ::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border) / 0.5);
+  border-radius: 3px;
+}
+
+/* Hint/autocomplete panel */
+.markdown-editor .vditor-hint {
+  background-color: rgb(var(--color-card)) !important;
+  border-color: rgb(var(--color-border) / 0.3) !important;
+}
+.markdown-editor .vditor-hint button {
+  color: #e2e8f0 !important;
+}
+.markdown-editor .vditor-hint button:hover,
+.markdown-editor .vditor-hint button.current {
+  background-color: rgb(var(--color-accent) / 0.1) !important;
+  color: rgb(var(--color-accent)) !important;
+}

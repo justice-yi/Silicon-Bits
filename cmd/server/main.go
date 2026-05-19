@@ -54,6 +54,7 @@ func main() {
 	webDir := "./web/dist"
 	if _, err := os.Stat(webDir); err == nil {
 		r.Static("/assets", webDir+"/assets")
+			r.Static("/vditor", webDir+"/vditor")
 		r.NoRoute(func(c *gin.Context) {
 			c.File(webDir + "/index.html")
 		})
