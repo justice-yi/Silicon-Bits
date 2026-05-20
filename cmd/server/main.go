@@ -57,6 +57,7 @@ func main() {
 			r.Static("/vditor", webDir+"/vditor")
 			r.StaticFile("/wavedrom.min.js", webDir+"/wavedrom.min.js")
 			r.StaticFile("/wavedrom-init.js", webDir+"/wavedrom-init.js")
+			r.StaticFile("/test-drawio.html", webDir+"/test-drawio.html")
 		r.NoRoute(func(c *gin.Context) {
 			c.File(webDir + "/index.html")
 		})

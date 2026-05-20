@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ import (
 var allowedExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
 	".webp": true, ".svg": true, ".bmp": true, ".ico": true,
-	".avif": true, ".tiff": true, ".tif": true,
+	".avif": true, ".tiff": true, ".tif": true, ".drawio": true,
 }
 
 func isImageExt(ext string) bool {
@@ -31,7 +32,7 @@ func detectMIME(file io.Reader, ext string) (string, []byte, error) {
 		return "", nil, err
 	}
 	contentType := http.DetectContentType(buf[:n])
-	if strings.HasPrefix(contentType, "image/") || ext == ".svg" {
+	if strings.HasPrefix(contentType, "image/") || ext == ".svg" || ext == ".drawio" {
 		return contentType, buf[:n], nil
 	}
 	return "", nil, fmt.Errorf("not an image")
@@ -193,12 +194,57 @@ func uploadWikiImageFile(c *gin.Context, wikiID string, origName string, ext str
 	wikiRootAbs, _ := filepath.Abs(GetWikiDir())
 	wikiDirAbs, _ := filepath.Abs(wikiDir)
 	wikiRelDir, _ := filepath.Rel(wikiRootAbs, wikiDirAbs)
-	imgURL := "/wiki/" + wikiRelDir + "/pic/" + filename
+	// Encode each path segment for URL safety (handles Chinese/space chars)
+	encodedPath := ""
+	for _, seg := range strings.Split(wikiRelDir, "/") {
+		if seg != "" {
+			encodedPath += "/" + url.PathEscape(seg)
+		}
+	}
+	imgURL := "/wiki" + encodedPath + "/pic/" + filename
 
 	c.JSON(http.StatusCreated, gin.H{
 		"url":      imgURL,
 		"filename": origName,
 	})
+}
+
+// SaveDrawio handles PUT /api/drawio/save — saves XML from embedded draw.io editor
+func SaveDrawio(c *gin.Context) {
+	var req struct {
+		URL string `json:"url"`
+		XML string `json:"xml"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.URL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
+		return
+	}
+
+	// Convert URL to file path and validate
+	decodedURL, err := url.PathUnescape(req.URL)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid URL encoding"})
+		return
+	}
+	cleanURL := filepath.Clean(decodedURL)
+	filePath := filepath.Join(GetDataDir(), cleanURL)
+	absPath, _ := filepath.Abs(filePath)
+	absDataDir, _ := filepath.Abs(GetDataDir())
+	if !strings.HasPrefix(absPath, absDataDir) || !strings.HasSuffix(absPath, ".drawio") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "invalid path"})
+		return
+	}
+
+	if err := os.WriteFile(absPath, []byte(req.XML), 0644); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "saved"})
 }
 
 // getWikiAssetDir returns the directory containing the wiki's .md file

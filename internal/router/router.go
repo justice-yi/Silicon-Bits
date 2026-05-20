@@ -10,6 +10,7 @@ import (
 func Setup(r *gin.Engine, cfg *config.Config) {
 	handler.SetWikiDir(cfg.DataDir + "/wiki")
 	handler.SetDataDir(cfg.DataDir)
+	handler.SetDrawioURL(cfg.DrawioURL)
 
 	// Static file serving (no auth required for embedded images)
 	r.Static("/bugs", cfg.DataDir+"/bugs")
@@ -21,6 +22,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	{
 		// Stats
 		api.GET("/stats", handler.Stats)
+		api.GET("/drawio/config", handler.DrawioConfig)
 
 		// Bugs
 		bugs := api.Group("/bugs")
@@ -51,6 +53,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		// Upload
 		api.POST("/upload", handler.UploadImage)
 		api.POST("/upload-local", handler.UploadLocalFile)
+		api.PUT("/drawio/save", handler.SaveDrawio)
 
 		// Search
 		api.GET("/search", handler.Search)

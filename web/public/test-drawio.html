@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head><title>Drawio Test</title></head>
+<body>
+<h2>Draw.io Embed Test v2</h2>
+<div id="status" style="font-family:monospace;font-size:12px;color:#666;margin:10px 0;"></div>
+<div id="container" style="width:900px;height:500px;border:1px solid #ccc;"></div>
+<script>
+(async function() {
+  const status = document.getElementById('status');
+  status.textContent = 'Fetching XML...';
+
+  // 1. Fetch the drawio XML
+  const resp = await fetch('/wiki/WaveDrom%20%E6%97%B6%E5%BA%8F%E5%9B%BE%E7%A4%BA%E4%BE%8B/pic/660487dc9d246413.drawio');
+  const xml = await resp.text();
+  status.textContent = 'XML fetched (' + xml.length + ' bytes). Creating iframe...';
+  console.log('XML:', xml);
+
+  // 2. Create iframe — try app.diagrams.net
+  const iframe = document.createElement('iframe');
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  iframe.style.border = 'none';
+  iframe.src = 'https://app.diagrams.net/?embed=1&proto=json&spin=1&lang=zh';
+  document.getElementById('container').appendChild(iframe);
+
+  status.textContent = 'Iframe created. Waiting for init message...';
+
+  // 3. Log ALL messages (no origin filter)
+  window.addEventListener('message', function(e) {
+    console.log('RAW message:', 'origin=', e.origin, 'data=', e.data);
+    status.textContent = 'Got message from: ' + e.origin + ' | ' + (typeof e.data === 'string' ? e.data.substring(0, 100) : JSON.stringify(e.data).substring(0, 100));
+
+    let msg;
+    try { msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch { status.textContent += ' (parse failed)'; return; }
+
+    if (msg.event === 'init') {
+      status.textContent = 'Init received! Sending load...';
+      iframe.contentWindow.postMessage(JSON.stringify({
+        action: 'load',
+        xml: xml,
+        autosave: 0,
+      }), '*');
+    }
+  });
+})();
+</script>
+</body>
+</html>

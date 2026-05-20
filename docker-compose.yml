@@ -10,6 +10,13 @@ services:
       - DATA_DIR=/data
       - AUTH_USERNAME=admin
       - AUTH_PASSWORD=silicon
+      - DRAWIO_URL=http://drawio:8080
+    restart: unless-stopped
+
+  drawio:
+    image: jgraph/drawio
+    ports:
+      - "9091:8080"
     restart: unless-stopped
 
   # Uncomment for public access with HTTPS

@@ -195,7 +195,7 @@ http://Windows机器IP:8080
 ```bash
 cd silicon-bits
 
-# 构建镜像（前端 + 后端一体化）
+# 构建镜像（前端 + 后端一体化）并启动（含 Draw.io）
 docker compose up -d --build
 
 # 查看日志
@@ -205,7 +205,9 @@ docker compose logs -f app
 docker compose down
 ```
 
-服务启动后访问 `http://localhost:8080`
+服务启动后：
+- 应用访问：`http://localhost:9090`
+- Draw.io 编辑器：`http://localhost:9091`（自动配置，无需手动设置）
 
 ### Dockerfile 说明
 
@@ -520,6 +522,61 @@ Bug 和 Wiki 编辑页面均支持四种图片上传方式：
 | `DB_PATH` | `${DATA_DIR}/silicon.db` | SQLite 数据库路径 |
 | `AUTH_USERNAME` | `admin` | Basic Auth 用户名 |
 | `AUTH_PASSWORD` | `silicon` | Basic Auth 密码 |
+| `DRAWIO_URL` | （空） | Draw.io 服务地址，如 `http://localhost:9091` |
+
+---
+
+## Draw.io 图表支持
+
+支持在 Wiki 中嵌入可编辑的 Draw.io 架构图。
+
+### 部署 Draw.io 服务
+
+Draw.io 编辑器是独立的 Web 服务，需要单独部署（Docker 最简单）：
+
+```bash
+docker run -d --name drawio -p 9091:8080 jgraph/drawio
+```
+
+然后在启动 Silicon Bits 时设置环境变量：
+
+```bash
+DRAWIO_URL=http://localhost:9091 ./silicon-bits
+```
+
+使用 docker-compose 时，`DRAWIO_URL` 已配置为 `http://drawio:8080`（容器间通信）。
+
+### 使用方式
+
+1. **上传 .drawio 文件**：在 Wiki 编辑页面拖拽或上传 `.drawio` 文件，自动生成引用
+2. **查看图表**：Wiki 详情页自动渲染 Draw.io 图表（lightbox 模式）
+3. **双击编辑**：双击图表进入全屏编辑模式，保存后自动写回服务器
+4. **Edit 按钮**：点击工具栏 "✏️ Edit" 按钮同样进入全屏编辑
+
+### 不部署 Draw.io
+
+如果不需要在线编辑图表，可以不部署 Draw.io 服务。页面会显示提示信息，不影响其他功能。
+
+---
+
+## WaveDrom 时序图
+
+支持在 Wiki/Bug 内容中嵌入数字时序图，使用代码块语法：
+
+````markdown
+```wavedrom
+{ "signal": [
+  {"name": "clk", "wave": "p......."},
+  {"name": "data", "wave": "x..345678x", "data": ["A","B","C","D"]},
+  {"name": "req", "wave": "0.1..0..1"},
+  {"name": "ack", "wave": "0....1..0"}
+]}
+```
+````
+
+常用波形符号：`0` 低电平 | `1` 高电平 | `p` 时钟正沿 | `x` 无效 | `.` 延续 | `2-9` 彩色数据
+
+更多语法参考：[WaveDrom 官方文档](https://wavedrom.com/tutorial.html)
 
 ---
 

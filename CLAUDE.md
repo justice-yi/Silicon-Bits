@@ -6,7 +6,7 @@
 
 - **后端**: Go 1.22 / Gin + SQLite(FTS5)
 - **前端**: SolidJS + Tailwind CSS（暗色终端风主题）
-- **部署**: Docker 多阶段构建 + Caddy（HTTPS + Basic Auth）
+- **部署**: Docker 多阶段构建 + Draw.io 容器 + Caddy（HTTPS + Basic Auth）
 - **存储**: SQLite + 文件系统（Bug 数据在 SQLite，图片在 `data/bugs/{id}/pic/`；Wiki 为 .md 文件驱动，图片在同级 `pic/` 目录）
 
 ## 项目结构
@@ -27,7 +27,7 @@ silicon-bits/
 │
 ├── internal/
 │   ├── config/
-│   │   └── config.go            # 环境变量配置（PORT, DB_PATH, AUTH_USERNAME, AUTH_PASSWORD, DATA_DIR）
+│   │   └── config.go            # 环境变量配置（PORT, DB_PATH, AUTH_USERNAME, AUTH_PASSWORD, DATA_DIR, DRAWIO_URL）
 │   │
 │   ├── database/
 │   │   ├── db.go                # SQLite 连接、Schema 迁移、FTS5 独立表（手动同步）、定时备份（6h/7天）
@@ -41,10 +41,10 @@ silicon-bits/
 │   ├── handler/
 │   │   ├── bug.go               # Bug CRUD + 导出 Markdown + 关联 Wiki/Bug + 列表筛选 + 删除清理图片
 │   │   ├── wiki.go              # Wiki CRUD + 文件读写 + 扫描目录 + 导出 + 删除清理文件
-│   │   ├── upload.go            # 图片上传（表单上传 + 服务器本地文件路径复制）
+│   │   ├── upload.go            # 图片上传（表单上传 + 服务器本地文件路径复制）+ Draw.io 文件保存
 │   │   ├── search.go            # FTS5 全局搜索（Bug + Wiki 联合搜索 + snippet 高亮）
 │   │   ├── bsp.go               # BSP 模块树 API（返回含 bug_count 的嵌套树）
-│   │   └── stats.go             # 统计 API（Bug/Wiki 总数，供 footer 显示）
+│   │   └── stats.go             # 统计 API（Bug/Wiki 总数）+ Draw.io 配置 API
 │   │
 │   ├── middleware/
 │   │   └── auth.go              # Basic Auth 中间件
@@ -149,6 +149,8 @@ POST   /api/upload-local             # 服务器本地文件复制（JSON: path,
 
 GET    /api/search?q=&type=all       # FTS5 全局搜索（bug|wiki|all）
 GET    /api/bsp/tree                 # BSP 模块树（含 bug_count）
+GET    /api/drawio/config            # Draw.io 服务地址（前端获取 embed URL）
+PUT    /api/drawio/save              # 保存 Draw.io 图表 XML
 ```
 
 ### 静态文件服务
@@ -221,6 +223,7 @@ PORT=9090 ./silicon-bits
 | `DB_PATH` | `${DATA_DIR}/silicon.db` | 数据库路径 |
 | `AUTH_USERNAME` | `admin` | Basic Auth 用户名 |
 | `AUTH_PASSWORD` | `silicon` | Basic Auth 密码 |
+| `DRAWIO_URL` | （空） | Draw.io 服务地址，如 `http://drawio:8080`（Docker）或 `http://localhost:9091` |
 
 ## 前端架构
 
