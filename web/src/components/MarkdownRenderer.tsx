@@ -2,6 +2,8 @@ import { onMount } from 'solid-js'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 
+declare const WaveDrom: any
+
 interface Props {
   content: string
   class?: string
@@ -61,7 +63,24 @@ export default function MarkdownRenderer(props: Props) {
 
     // Highlight code blocks
     ref.querySelectorAll('pre code').forEach((block) => {
-      hljs.highlightElement(block as HTMLElement)
+      const el = block as HTMLElement
+      // Skip wavedrom blocks — render as SVG instead
+      if (el.classList.contains('language-wavedrom')) {
+        if (typeof WaveDrom !== 'undefined') {
+          try {
+            const json = JSON.parse(el.textContent || '')
+            const container = document.createElement('div')
+            container.style.overflow = 'auto'
+            container.style.margin = '12px 0'
+            el.parentElement?.replaceWith(container)
+            WaveDrom.renderWaveElement(0, json, container, WaveDrom.waveSkin)
+          } catch (e) {
+            console.warn('WaveDrom render error:', e)
+          }
+        }
+        return
+      }
+      hljs.highlightElement(el)
     })
   })
 
