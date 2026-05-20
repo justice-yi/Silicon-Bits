@@ -130,6 +130,23 @@ func ScanDirectory(wikiDir string) (imported int, err error) {
 		}
 	}
 
+	// Clean up SQLite records whose .md files no longer exist
+	rows, err := database.DB.Query("SELECT id, file_path FROM wikis WHERE file_path != ''")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			var fp string
+			if rows.Scan(&id, &fp) == nil {
+				if _, err := os.Stat(fp); os.IsNotExist(err) {
+					database.DB.Exec("DELETE FROM wikis WHERE id = ?", id)
+					database.DeleteWikiFTS(id)
+					imported++
+				}
+			}
+		}
+	}
+
 	return imported, nil
 }
 

@@ -20,6 +20,7 @@ export default function WikisPage() {
   const [total, setTotal] = createSignal(0)
   const [page, setPage] = createSignal(1)
   const [loading, setLoading] = createSignal(true)
+  const [draggingId, setDraggingId] = createSignal(0)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -112,7 +113,15 @@ export default function WikisPage() {
               {(wiki) => (
                 <div
                   class="bg-card border border-border/30 rounded-xl p-4 card-glow cursor-pointer"
+                  classList={{ 'opacity-50 ring-2 ring-accent/50': draggingId() === wiki.id }}
+                  draggable={true}
                   onClick={() => navigate(`/wikis/${wiki.id}`)}
+                  onDragStart={(e) => {
+                    setDraggingId(wiki.id)
+                    e.dataTransfer!.setData('wiki-id', String(wiki.id))
+                    e.dataTransfer!.effectAllowed = 'move'
+                  }}
+                  onDragEnd={() => setDraggingId(0)}
                 >
                   <div class="flex items-center gap-2 mb-2">
                     <span class="px-2 py-0.5 text-[10px] bg-secondary/10 text-secondary border border-secondary/20 rounded font-mono">

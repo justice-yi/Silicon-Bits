@@ -1,6 +1,6 @@
 import { createSignal, onMount, For, Show } from 'solid-js'
 import { useNavigate, useLocation } from '@solidjs/router'
-import { bspTree } from '../api/client'
+import { bspTree, wikis } from '../api/client'
 import CategoryManager from './CategoryManager'
 
 interface BSPModule {
@@ -17,6 +17,8 @@ export default function Sidebar(props: { onNavigate?: () => void }) {
   const [tree, setTree] = createSignal<BSPModule[]>([])
   const [expanded, setExpanded] = createSignal<Set<number>>(new Set())
   const [showManager, setShowManager] = createSignal(false)
+  const [dropTargetId, setDropTargetId] = createSignal(0)
+  const dragCounters = new Map<number, number>()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -78,13 +80,13 @@ export default function Sidebar(props: { onNavigate?: () => void }) {
             {(mod) => (
               <div>
                 <div
-                  class="flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all text-gray-300 hover:bg-surface hover:text-white group"
+                  class="flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all text-accent-dim hover:bg-accent/10 hover:text-accent group"
                   onClick={() => toggleExpand(mod.id)}
                 >
-                  <span class="text-xs text-gray-500 transition-transform" classList={{ 'rotate-90': expanded().has(mod.id) }}>▶</span>
-                  <span class="flex-1 truncate">{mod.name}</span>
+                  <span class="text-xs text-accent/50 transition-transform" classList={{ 'rotate-90': expanded().has(mod.id) }}>▶</span>
+                  <span class="flex-1 truncate font-medium">{mod.name}</span>
                   <Show when={mod.wiki_count > 0}>
-                    <span class="text-xs text-gray-500 font-mono">{mod.wiki_count}</span>
+                    <span class="text-xs text-accent/50 font-mono">{mod.wiki_count}</span>
                   </Show>
                 </div>
                 <Show when={expanded().has(mod.id) && mod.children}>
@@ -92,12 +94,35 @@ export default function Sidebar(props: { onNavigate?: () => void }) {
                     <For each={mod.children}>
                       {(child) => (
                         <div
-                          class="flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer transition-all text-sm text-gray-500 hover:text-secondary hover:bg-secondary/5"
+                          class="flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer transition-all text-sm text-secondary/70 hover:text-secondary hover:bg-secondary/10"
+                          classList={{ 'bg-accent/20 text-accent ring-2 ring-accent shadow-[0_0_12px_var(--color-glow)]': dropTargetId() === child.id }}
                           onClick={() => { navigate(`/wikis?module=${child.id}`); props.onNavigate?.() }}
+                          onDragEnter={(e) => {
+                            e.preventDefault()
+                            dragCounters.set(child.id, (dragCounters.get(child.id) || 0) + 1)
+                            setDropTargetId(child.id)
+                          }}
+                          onDragOver={(e) => { e.preventDefault(); e.dataTransfer!.dropEffect = 'move' }}
+                          onDragLeave={() => {
+                            const c = (dragCounters.get(child.id) || 1) - 1
+                            dragCounters.set(child.id, c)
+                            if (c <= 0) { dragCounters.delete(child.id); setDropTargetId(0) }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            dragCounters.delete(child.id)
+                            setDropTargetId(0)
+                            const wikiId = Number(e.dataTransfer!.getData('wiki-id'))
+                            if (wikiId) {
+                              wikis.update(wikiId, { bsp_module_id: child.id })
+                                .then(() => loadTree())
+                                .catch(console.error)
+                            }
+                          }}
                         >
                           <span class="flex-1 truncate">{child.name}</span>
                           <Show when={child.wiki_count > 0}>
-                            <span class="text-xs font-mono text-gray-600">{child.wiki_count}</span>
+                            <span class="text-xs font-mono text-secondary/40">{child.wiki_count}</span>
                           </Show>
                         </div>
                       )}
@@ -114,7 +139,7 @@ export default function Sidebar(props: { onNavigate?: () => void }) {
           <div class="text-xs uppercase tracking-wider text-gray-500 px-3 mb-2 font-semibold">Wiki Types</div>
           {['driver-dev', 'kernel', 'hardware', 'tool', 'other'].map(cat => (
             <div
-              class="px-3 py-1.5 rounded-md cursor-pointer transition-all text-sm text-gray-500 hover:text-secondary hover:bg-secondary/5"
+              class="px-3 py-1.5 rounded-md cursor-pointer transition-all text-sm text-secondary/70 hover:text-secondary hover:bg-secondary/10"
               onClick={() => { navigate(`/wikis?category=${cat}`); props.onNavigate?.() }}
             >
               {cat}

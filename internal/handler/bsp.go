@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -42,6 +43,16 @@ func BSPTree(c *gin.Context) {
 				parent.Children = append(parent.Children, *m)
 			}
 		}
+	}
+
+	// Sort children by sort_order then name (map iteration is unordered)
+	for _, m := range all {
+		sort.Slice(m.Children, func(i, j int) bool {
+			if m.Children[i].SortOrder != m.Children[j].SortOrder {
+				return m.Children[i].SortOrder < m.Children[j].SortOrder
+			}
+			return m.Children[i].Name < m.Children[j].Name
+		})
 	}
 
 	// Convert roots (with children populated from map)
