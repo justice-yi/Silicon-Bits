@@ -248,8 +248,9 @@
   .markdown-body h6 { @apply text-sm font-medium text-gray-400 mt-3 mb-1; }
   .markdown-body p { @apply text-gray-300 leading-relaxed mb-4; }
   .markdown-body ul { @apply list-disc list-inside mb-3 text-gray-300; }
-  .markdown-body ol { @apply list-decimal list-inside mb-3 text-gray-300; }
+  .markdown-body ol { @apply list-decimal list-outside mb-3 text-gray-300; padding-left: 1.8em; }
   .markdown-body li { @apply mb-1; }
+  .markdown-body ol li { @apply mb-2.5; }
   .markdown-body code {
     @apply bg-surface text-accent px-1.5 py-0.5 rounded font-mono text-[14px];
   }
@@ -308,6 +309,20 @@
   border: 1px solid rgb(var(--color-border) / 0.3) !important;
   border-radius: 0.75rem !important;
   background-color: transparent !important;
+}
+
+/* Restore list styles inside Vditor editor (Tailwind preflight resets them) */
+.markdown-editor .vditor-reset ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 2em !important;
+}
+.markdown-editor .vditor-reset ol li {
+  margin-bottom: 0.4em !important;
+}
+.markdown-editor .vditor-reset ul {
+  list-style-type: disc !important;
+  padding-left: 2em !important;
 }
 
 /* Toolbar */

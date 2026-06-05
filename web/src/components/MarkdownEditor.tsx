@@ -84,6 +84,80 @@ export default function MarkdownEditor(props: Props) {
     return data.url
   }
 
+  // Exit ordered list by modifying the Markdown source directly.
+  const exitListItem = (liElement: HTMLElement) => {
+    if (!vditorRef) return
+
+    const md = vditorRef.getValue()
+    const lines = md.split('\n')
+
+    // Get marker number from data-marker attribute (e.g., "4.")
+    const markerAttr = liElement.getAttribute('data-marker') || ''
+    const markerNum = markerAttr.replace(/\.\s*$/, '')
+    const prefix = markerNum + '. '
+
+    // Find the target line in the Markdown
+    let targetIdx = lines.findIndex(l => l.startsWith(prefix))
+    if (targetIdx === -1) return
+
+    // Extract content after "N. "
+    const content = lines[targetIdx].substring(prefix.length)
+
+    // Replace list item with: blank line (terminates list) + content as regular paragraph
+    lines[targetIdx] = ''
+    lines.splice(targetIdx + 1, 0, content)
+
+    const newMd = lines.join('\n')
+
+    isSettingValue = true
+    vditorRef.setValue(newMd)
+    isSettingValue = false
+
+    isInternalUpdate = true
+    props.onInput(newMd)
+    isInternalUpdate = false
+  }
+
+  // Backspace at start of ordered list item → remove marker, convert to paragraph
+  // (Enter on empty item is handled natively by Vditor)
+  const handleListExit = (e: KeyboardEvent) => {
+    if (e.key !== 'Backspace' || e.ctrlKey || e.metaKey) return
+
+    const target = e.target as HTMLElement
+    if (!target) return
+
+    const irReset = target.closest('pre.vditor-reset') as HTMLElement | null
+    if (!irReset || !containerRef?.contains(irReset)) return
+
+    const sel = window.getSelection()
+    if (!sel || !sel.isCollapsed) return
+
+    const node = sel.anchorNode
+    if (!node) return
+
+    const el = node instanceof HTMLElement ? node : node.parentElement
+    if (!el) return
+
+    // In Vditor IR mode, ordered lists use <ol><li data-marker="N.">...</li></ol>
+    const li = el.closest('li[data-marker]') as HTMLElement | null
+    if (!li) return
+
+    const marker = li.getAttribute('data-marker') || ''
+    // Only handle ordered list markers (e.g., "1.", "2.", "4.")
+    if (!/^\d+\.\s*$/.test(marker)) return
+
+    // Backspace: cursor must be at the very start of the LI content
+    const range = document.createRange()
+    range.setStart(li, 0)
+    range.setEnd(sel.anchorNode, sel.anchorOffset)
+    const textBefore = range.toString().replace(/[\s\u200B\uFEFF]/g, '')
+    if (textBefore !== '') return
+
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    exitListItem(li)
+  }
+
   // Custom paste handler for file:// paths (Nautilus / VMware clipboard)
   const handleLocalPaste = async (e: ClipboardEvent) => {
     const text = e.clipboardData?.getData('text/plain') || ''
@@ -177,7 +251,6 @@ export default function MarkdownEditor(props: Props) {
       },
       after: () => {
         isReady = true
-
         // Apply pending value if it changed during init
         if (pendingValue !== null) {
           isSettingValue = true
@@ -187,19 +260,22 @@ export default function MarkdownEditor(props: Props) {
         }
 
         // Attach custom paste handler for local file paths
-        const editArea = containerRef?.querySelector('.vditor-ir')
+        const editArea = containerRef?.querySelector('pre.vditor-reset')
         if (editArea) {
           editArea.addEventListener('paste', handleLocalPaste, true)
         }
+        // Register list-exit handler at document level (capture phase) to fire before Vditor
+        document.addEventListener('keydown', handleListExit, true)
       },
     })
   })
 
   onCleanup(() => {
-    const editArea = containerRef?.querySelector('.vditor-ir')
+    const editArea = containerRef?.querySelector('pre.vditor-reset')
     if (editArea) {
       editArea.removeEventListener('paste', handleLocalPaste, true)
     }
+    document.removeEventListener('keydown', handleListExit, true)
     vditorRef?.destroy()
     vditorRef = undefined
     isReady = false
