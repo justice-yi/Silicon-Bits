@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show, For } from 'solid-js'
+import { createSignal, onMount, onCleanup, Show, For } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
 import { wikis } from '../api/client'
 import { getCredentials } from '../api/client'
@@ -31,6 +31,15 @@ export default function WikiDetailPage() {
   const navigate = useNavigate()
   const [wiki, setWiki] = createSignal<WikiDetail | null>(null)
   const [loading, setLoading] = createSignal(true)
+  const [scrolled, setScrolled] = createSignal(false)
+
+  let mainEl: HTMLElement | undefined
+  const onScroll = () => setScrolled((mainEl?.scrollTop || 0) > 200)
+  onMount(() => {
+    mainEl = document.querySelector('main') as HTMLElement
+    mainEl?.addEventListener('scroll', onScroll, { passive: true })
+  })
+  onCleanup(() => mainEl?.removeEventListener('scroll', onScroll))
 
   onMount(async () => {
     const auth = getCredentials() || ''
@@ -186,6 +195,38 @@ export default function WikiDetailPage() {
                   <WikiTOC />
                 </Show>
               </div>
+
+              {/* Floating action buttons — visible when scrolled down */}
+              <Show when={scrolled()}>
+                <div class="fixed bottom-6 right-6 z-30 flex flex-col gap-2">
+                  <button
+                    onClick={() => navigate(`/wikis/${params.id}/edit`)}
+                    class="w-10 h-10 rounded-full bg-surface/90 border border-border/40 text-gray-400 hover:text-accent hover:border-accent/40 flex items-center justify-center text-sm backdrop-blur-sm transition shadow-lg"
+                    title="Edit"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    onClick={() => exportPdf({
+                      title: w.title,
+                      meta: `${categoryLabel[w.category] || w.category}${w.tags?.length ? ' | ' + w.tags.join(', ') : ''} | ${new Date(w.created_at).toLocaleDateString()}`,
+                      contentId: 'wiki-md-content',
+                      filename: `wiki-${params.id}.pdf`
+                    })}
+                    class="w-10 h-10 rounded-full bg-secondary/15 border border-secondary/30 text-secondary hover:bg-secondary/25 flex items-center justify-center text-sm backdrop-blur-sm transition shadow-lg"
+                    title="Export PDF"
+                  >
+                    PDF
+                  </button>
+                  <button
+                    onClick={() => mainEl?.scrollTo({ top: 0, behavior: 'smooth' })}
+                    class="w-10 h-10 rounded-full bg-surface/90 border border-border/40 text-gray-500 hover:text-accent hover:border-accent/40 flex items-center justify-center text-sm backdrop-blur-sm transition shadow-lg"
+                    title="Back to top"
+                  >
+                    ↑
+                  </button>
+                </div>
+              </Show>
             </div>
           )
         })()}

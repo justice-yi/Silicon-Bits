@@ -111,8 +111,8 @@ func GetWiki(c *gin.Context) {
 	}
 	json.Unmarshal([]byte(tagsStr), &w.Tags)
 
-	// If file-backed, read fresh content from file
-	if w.FilePath != "" {
+	// Only read from file when explicitly requested (edit page)
+	if c.Query("source") == "file" && w.FilePath != "" {
 		if data, err := os.ReadFile(w.FilePath); err == nil {
 			wf := wiki.ParseFrontmatter(string(data))
 			w.Content = wf.Content
@@ -120,10 +120,9 @@ func GetWiki(c *gin.Context) {
 				w.Title = wf.Title
 			}
 		}
+		// Convert relative image URLs to absolute for editor rendering
+		w.Content = wikiRelToAbsURLs(w.Content, w.FilePath)
 	}
-
-	// Convert relative image URLs to absolute for editor rendering
-	w.Content = wikiRelToAbsURLs(w.Content, w.FilePath)
 
 	// Load linked bugs
 	rows, _ := database.DB.Query(
@@ -254,9 +253,36 @@ func UpdateWiki(c *gin.Context) {
 		return
 	}
 
-	// Update .md file — write directly to the existing file path
-	if newContent != "" && currentFP != "" {
-		wiki.WriteToPath(currentFP, newTitle, newCategory, newTags, newContent)
+	// Handle file rename if title changed
+	newFP := currentFP
+	titleChanged := req.Title != nil && *req.Title != currentTitle
+	if titleChanged && currentFP != "" {
+		oldDir := filepath.Dir(currentFP)
+		newDir := filepath.Join(wikiDir, newTitle)
+		if oldDir != newDir {
+			// Rename directory (keeps pic/ subfolder intact)
+			if _, err := os.Stat(oldDir); err == nil {
+				os.Rename(oldDir, newDir)
+			}
+			// Rename .md file inside the (now renamed) directory
+			oldMD := filepath.Join(newDir, currentTitle+".md")
+			newFP = filepath.Join(newDir, newTitle+".md")
+			if oldMD != newFP {
+				os.Rename(oldMD, newFP)
+			}
+			setClauses = append(setClauses, "file_path = ?")
+			args = append(args, newFP)
+		}
+	}
+
+	// Update .md file content
+	if newContent != "" && newFP != "" {
+		wiki.WriteToPath(newFP, newTitle, newCategory, newTags, newContent)
+	} else if newFP != "" {
+		// Only title/category/tags changed — update frontmatter in-place
+		if req.Title != nil || req.Category != nil || req.Tags != nil {
+			wiki.UpdateFrontmatter(newFP, newTitle, newCategory, newTags)
+		}
 	} else if newContent != "" {
 		// Create file for wiki that didn't have one
 		fp, _ := wiki.WriteWikiFile(wikiDir, newTitle, newCategory, newTags, newContent)

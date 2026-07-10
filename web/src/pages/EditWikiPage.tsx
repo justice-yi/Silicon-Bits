@@ -43,7 +43,7 @@ export default function EditWikiPage() {
     setErrMsg('')
     setLoaded(false)
     const auth = getCredentials() || ''
-    fetch(`/api/wikis/${id}`, { headers: { Authorization: auth } })
+    fetch(`/api/wikis/${id}?source=file`, { headers: { Authorization: auth } })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then((data: any) => {
         setForm({

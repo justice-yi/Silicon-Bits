@@ -282,13 +282,16 @@ export default function MarkdownEditor(props: Props) {
   })
 
   // Sync external value changes to Vditor
+  let lastSyncedValue = ''
   createEffect(() => {
     const val = props.value
     if (!isReady) {
       pendingValue = val
+      lastSyncedValue = val
       return
     }
-    if (vditorRef && !isInternalUpdate) {
+    if (vditorRef && !isInternalUpdate && val !== lastSyncedValue) {
+      lastSyncedValue = val
       isSettingValue = true
       vditorRef.setValue(val)
       isSettingValue = false

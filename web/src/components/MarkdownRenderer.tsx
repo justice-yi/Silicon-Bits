@@ -4,6 +4,7 @@ import hljs from 'highlight.js'
 import { request } from '../api/client'
 
 declare const WaveDrom: any
+declare const mermaid: any
 
 // Cached draw.io embed URL
 let drawioBase = ''
@@ -555,9 +556,126 @@ export default function MarkdownRenderer(props: Props) {
       }
     })
 
+    // Render mermaid code blocks
+    const mermaidBlocks = ref.querySelectorAll('pre code.language-mermaid')
+    if (mermaidBlocks.length > 0) {
+      const loadAndRenderMermaid = async () => {
+        // Load mermaid library if not yet loaded
+        if (typeof mermaid === 'undefined') {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script')
+            script.src = '/vditor/js/mermaid/mermaid.min.js'
+            script.onload = () => resolve()
+            script.onerror = () => reject(new Error('Failed to load mermaid'))
+            document.head.appendChild(script)
+          })
+          mermaid.initialize({
+            securityLevel: 'loose',
+            startOnLoad: false,
+            theme: 'dark',
+            flowchart: { htmlLabels: true, useMaxWidth: true },
+            sequence: { useMaxWidth: true, diagramMarginX: 8, diagramMarginY: 8, boxMargin: 8, showSequenceNumbers: true },
+          })
+        }
+        for (const block of mermaidBlocks) {
+          const el = block as HTMLElement
+          if (el.getAttribute('data-processed') === 'true') continue
+          const code = el.textContent || ''
+          if (code.trim() === '') continue
+          // Extract custom title from first line: %% title: xxx
+          const titleMatch = code.match(/^%%\s*title\s*:\s*(.+)/m)
+          const diagramTitle = titleMatch ? titleMatch[1].trim() : 'Mermaid'
+          try {
+            const id = 'mermaid-' + Math.random().toString(36).slice(2)
+            const { svg } = await mermaid.render(id, code)
+            // Measure SVG height to decide if collapsible
+            const measure = document.createElement('div')
+            measure.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none'
+            measure.innerHTML = svg
+            document.body.appendChild(measure)
+            const svgHeight = measure.querySelector('svg')?.getBoundingClientRect().height || 0
+            document.body.removeChild(measure)
+
+            const COLLAPSED_HEIGHT = 220
+            const needsCollapse = svgHeight > COLLAPSED_HEIGHT + 40
+
+            // Wrapper with border + card bg
+            const wrapper = document.createElement('div')
+            wrapper.style.cssText = 'margin:12px 0;border:1px solid rgb(var(--color-border) / 0.3);border-radius:8px;overflow:hidden;background:rgb(var(--color-card))'
+
+            // Header bar
+            const header = document.createElement('div')
+            header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:rgb(var(--color-surface));border-bottom:1px solid rgb(var(--color-border) / 0.2);cursor:pointer;user-select:none;transition:background 0.15s'
+            const label = document.createElement('span')
+            label.style.cssText = 'font-size:12px;color:rgb(var(--color-accent) / 0.8);font-family:"JetBrains Mono",monospace'
+            label.textContent = diagramTitle
+            const toggleBtn = document.createElement('span')
+            toggleBtn.style.cssText = 'font-size:11px;color:rgb(var(--color-text) / 0.4);transition:transform 0.2s'
+            toggleBtn.textContent = '▼'
+
+            header.appendChild(label)
+            if (needsCollapse) header.appendChild(toggleBtn)
+            header.onmouseenter = () => header.style.background = 'rgb(var(--color-accent) / 0.05)'
+            header.onmouseleave = () => header.style.background = 'rgb(var(--color-surface))'
+            wrapper.appendChild(header)
+
+            // Body: holds shadow DOM host
+            const body = document.createElement('div')
+            body.style.cssText = 'position:relative;transition:max-height 0.3s ease;overflow:hidden'
+
+            // Shadow DOM host for SVG isolation
+            const host = document.createElement('div')
+            host.style.cssText = 'display:block;overflow:auto;text-align:center'
+            const shadow = host.attachShadow({ mode: 'open' })
+            shadow.innerHTML = svg
+            body.appendChild(host)
+
+            // Collapse logic
+            if (needsCollapse) {
+              body.style.maxHeight = COLLAPSED_HEIGHT + 'px'
+              // Gradient fade overlay
+              const fade = document.createElement('div')
+              fade.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(transparent, rgb(var(--color-card)));pointer-events:none`
+              body.appendChild(fade)
+
+              let expanded = false
+              header.onclick = () => {
+                expanded = !expanded
+                if (expanded) {
+                  body.style.maxHeight = 'none'
+                  fade.style.display = 'none'
+                  toggleBtn.textContent = '▲'
+                } else {
+                  body.style.maxHeight = COLLAPSED_HEIGHT + 'px'
+                  fade.style.display = ''
+                  toggleBtn.textContent = '▼'
+                }
+              }
+            }
+
+            wrapper.appendChild(body)
+            el.parentElement?.replaceWith(wrapper)
+          } catch (e: any) {
+            console.warn('Mermaid render error:', e)
+            // Show error inline
+            const errDiv = document.createElement('div')
+            errDiv.style.cssText = 'margin:12px 0;padding:12px;border:1px solid rgb(var(--color-danger) / 0.3);border-radius:8px;color:rgb(var(--color-danger));font-size:13px'
+            errDiv.textContent = 'Mermaid render error: ' + (e.message || e)
+            el.parentElement?.replaceWith(errDiv)
+          }
+          el.setAttribute('data-processed', 'true')
+        }
+      }
+      loadAndRenderMermaid()
+    }
+
     // Highlight code blocks
     ref.querySelectorAll('pre code').forEach((block) => {
       const el = block as HTMLElement
+      // Skip mermaid blocks — already rendered above
+      if (el.classList.contains('language-mermaid')) {
+        return
+      }
       // Skip wavedrom blocks — render as SVG instead
       if (el.classList.contains('language-wavedrom')) {
         if (typeof WaveDrom !== 'undefined') {

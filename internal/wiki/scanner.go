@@ -328,3 +328,26 @@ func writeContent(fp string, title string, category string, tags []string, conte
 
 	os.WriteFile(fp, []byte(sb.String()), 0644)
 }
+
+// UpdateFrontmatter rewrites only the frontmatter of an existing .md file, preserving body content.
+func UpdateFrontmatter(fp string, title string, category string, tags []string) {
+	data, err := os.ReadFile(fp)
+	if err != nil {
+		return
+	}
+	content := string(data)
+
+	// Extract body after frontmatter
+	body := content
+	if strings.HasPrefix(content, "---") {
+		end := strings.Index(content[3:], "---")
+		if end >= 0 {
+			body = content[3+end+3:]
+			if strings.HasPrefix(body, "\n") {
+				body = body[1:]
+			}
+		}
+	}
+
+	writeContent(fp, title, category, tags, body)
+}
