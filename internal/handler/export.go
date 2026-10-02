@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/base64"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -34,7 +35,6 @@ func embedImages(content string, wikiDir string) string {
 		}
 		alt := sub[1]
 		path := sub[2]
-		hasBang := strings.HasPrefix(match, "!")
 
 		// Skip already-embedded data URLs
 		if strings.HasPrefix(path, "data:") {
@@ -44,20 +44,14 @@ func embedImages(content string, wikiDir string) string {
 		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 			return match
 		}
-		// For links without !, only process if path looks like an image
-		if !hasBang && !isImageLikePath(path) {
+		// Only embed real image types. Other assets (e.g. .drawio XML) have no
+		// meaningful data-URL representation — leave them as links.
+		if !isImageLikePath(path) {
 			return match
 		}
 
-		var filePath string
-
-		// Absolute web path: /bugs/123/pic/xxx.png → data/bugs/123/pic/xxx.png
-		if strings.HasPrefix(path, "/bugs/") || strings.HasPrefix(path, "/wiki/") || strings.HasPrefix(path, "/uploads/") {
-			filePath = filepath.Join(dataDir, path)
-		} else if wikiDir != "" {
-			// Relative path: pic/09_UART/xxx.png → wikiDir/pic/09_UART/xxx.png
-			filePath = filepath.Join(wikiDir, path)
-		} else {
+		filePath := findContentFile(dataDir, wikiDir, path)
+		if filePath == "" {
 			return match
 		}
 
@@ -66,10 +60,34 @@ func embedImages(content string, wikiDir string) string {
 			return match
 		}
 
-		mimeType := mimeTypeFromExt(filepath.Ext(path))
+		mimeType := mimeTypeFromExt(filepath.Ext(filePath))
 		b64 := base64.StdEncoding.EncodeToString(imgData)
 		return "![" + alt + "](data:" + mimeType + ";base64," + b64 + ")"
 	})
+}
+
+// findContentFile maps a markdown URL to a readable local file. Upload URLs
+// are percent-encoded (PathEscape on Chinese/space titles), while the disk
+// holds the raw names — try the raw path first, then the decoded one.
+func findContentFile(dataDir, wikiDir, path string) string {
+	candidates := []string{path}
+	if dec, err := url.PathUnescape(path); err == nil && dec != path {
+		candidates = append(candidates, dec)
+	}
+	for _, p := range candidates {
+		if strings.HasPrefix(p, "/bugs/") || strings.HasPrefix(p, "/wiki/") || strings.HasPrefix(p, "/uploads/") {
+			fp := filepath.Join(dataDir, p)
+			if _, err := os.Stat(fp); err == nil {
+				return fp
+			}
+		} else if wikiDir != "" && !strings.HasPrefix(p, "/") {
+			fp := filepath.Join(wikiDir, p)
+			if _, err := os.Stat(fp); err == nil {
+				return fp
+			}
+		}
+	}
+	return ""
 }
 
 func mimeTypeFromExt(ext string) string {
