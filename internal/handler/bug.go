@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -86,22 +87,28 @@ func ListBugs(c *gin.Context) {
 	var total int
 
 	if f.Q != "" {
-		// Use FTS5 search
+		// Use FTS5 search; user input is wrapped as a quoted phrase so quotes,
+		// parens, AND/OR/NOT etc. can never cause a MATCH syntax error.
+		safeQ := ftsQuote(f.Q)
 		countQ := `SELECT COUNT(*) FROM bugs_fts WHERE bugs_fts MATCH ?`
-		database.DB.QueryRow(countQ, f.Q).Scan(&total)
+		database.DB.QueryRow(countQ, safeQ).Scan(&total)
 
 		dataQ := `SELECT b.id, b.title, b.bsp_module_id, b.severity, b.kernel_version, b.soc, b.tags, b.content, b.created_at, b.updated_at
 			FROM bugs_fts f JOIN bugs b ON b.id = f.rowid
 			WHERE bugs_fts MATCH ?
 			ORDER BY rank
 			LIMIT ? OFFSET ?`
-		rows, err := database.DB.Query(dataQ, f.Q, f.PageSize, (f.Page-1)*f.PageSize)
+		rows, err := database.DB.Query(dataQ, safeQ, f.PageSize, (f.Page-1)*f.PageSize)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		defer rows.Close()
-		bugs = scanBugs(rows)
+		bugs, err = scanBugs(rows)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	} else {
 		// Regular listing with filters
 		query := `SELECT COUNT(*) FROM bugs WHERE 1=1`
@@ -122,7 +129,11 @@ func ListBugs(c *gin.Context) {
 			return
 		}
 		defer rows.Close()
-		bugs = scanBugs(rows)
+		bugs, err = scanBugs(rows)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// Enrich with module names
@@ -395,7 +406,12 @@ func ExportBug(c *gin.Context) {
 	}
 
 	if format == "md" {
-		c.Header("Content-Disposition", "attachment; filename=bug-"+strconv.FormatInt(id, 10)+".md")
+		name := sanitizeFilename(b.Title)
+		if name == "" {
+			name = "bug-" + strconv.FormatInt(id, 10)
+		}
+		c.Header("Content-Disposition",
+			"attachment; filename=\"bug-"+strconv.FormatInt(id, 10)+".md\"; filename*=UTF-8''"+url.PathEscape(name)+".md")
 		c.Data(http.StatusOK, "text/markdown; charset=utf-8", []byte(md))
 		return
 	}
@@ -404,7 +420,7 @@ func ExportBug(c *gin.Context) {
 
 // --- helpers ---
 
-func scanBugs(rows *sql.Rows) []model.Bug {
+func scanBugs(rows *sql.Rows) ([]model.Bug, error) {
 	var bugs []model.Bug
 	for rows.Next() {
 		var b model.Bug
@@ -413,7 +429,14 @@ func scanBugs(rows *sql.Rows) []model.Bug {
 		json.Unmarshal([]byte(tagsStr), &b.Tags)
 		bugs = append(bugs, b)
 	}
-	return bugs
+	// Without this check, a failed query looks like "no results" instead of an error.
+	return bugs, rows.Err()
+}
+
+// ftsQuote wraps user input as a quoted FTS5 phrase so arbitrary characters
+// (quotes, parens, operators) can never produce a MATCH syntax error.
+func ftsQuote(q string) string {
+	return `"` + strings.ReplaceAll(q, `"`, `""`) + `"`
 }
 
 func enrichBugModule(b *model.Bug) {

@@ -19,25 +19,33 @@ func Search(c *gin.Context) {
 	result := gin.H{"query": q}
 
 	if searchType == "all" || searchType == "bug" {
-		bugs := searchBugs(q)
+		bugs, err := searchBugs(q)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 		result["bugs"] = bugs
 	}
 
 	if searchType == "all" || searchType == "wiki" {
-		wikis := searchWikis(q)
+		wikis, err := searchWikis(q)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 		result["wikis"] = wikis
 	}
 
 	c.JSON(http.StatusOK, result)
 }
 
-func searchBugs(q string) []map[string]any {
+func searchBugs(q string) ([]map[string]any, error) {
 	query := `SELECT b.id, b.title, b.severity, b.soc, snippet(bugs_fts, 2, '>>>', '<<<', '...', 30) as context
 		FROM bugs_fts f JOIN bugs b ON b.id = f.rowid
 		WHERE bugs_fts MATCH ? ORDER BY rank LIMIT 10`
-	rows, err := database.DB.Query(query, q)
+	rows, err := database.DB.Query(query, ftsQuote(q))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -54,16 +62,16 @@ func searchBugs(q string) []map[string]any {
 			"context":  context,
 		})
 	}
-	return results
+	return results, rows.Err()
 }
 
-func searchWikis(q string) []map[string]any {
+func searchWikis(q string) ([]map[string]any, error) {
 	query := `SELECT w.id, w.title, w.category, snippet(wikis_fts, 1, '>>>', '<<<', '...', 30) as context
 		FROM wikis_fts f JOIN wikis w ON w.id = f.rowid
 		WHERE wikis_fts MATCH ? ORDER BY rank LIMIT 10`
-	rows, err := database.DB.Query(query, q)
+	rows, err := database.DB.Query(query, ftsQuote(q))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -79,5 +87,5 @@ func searchWikis(q string) []map[string]any {
 			"context":  context,
 		})
 	}
-	return results
+	return results, rows.Err()
 }
