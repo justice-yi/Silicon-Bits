@@ -1,6 +1,6 @@
 import { createSignal, onMount, JSX, Show, For } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
-import { stats } from '../api/client'
+import { stats, logout } from '../api/client'
 import Sidebar from './Sidebar'
 import { useTheme, THEMES } from './ThemeProvider'
 
@@ -94,6 +94,13 @@ export default function Layout(props: { children: JSX.Element }) {
               class="px-3 py-1.5 text-sm bg-secondary/10 border border-secondary/30 text-secondary rounded-lg hover:bg-secondary/20 transition-all"
             >
               + Wiki
+            </button>
+            <button
+              onClick={() => { logout(); location.assign('/') }}
+              class="px-3 py-1.5 text-sm bg-surface/50 border border-border/30 text-gray-400 rounded-lg hover:border-danger/40 hover:text-danger transition-all"
+              title="Clear saved credentials and return to login"
+            >
+              Log out
             </button>
           </div>
         </header>

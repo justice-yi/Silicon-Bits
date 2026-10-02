@@ -1,9 +1,33 @@
 const BASE = '/api'
+const AUTH_KEY = 'sb_auth'
 
 let authHeader = ''
 
+// Restore the session on page load so a refresh doesn't kick the user back
+// to the login screen. (localStorage keeps the Basic header itself — fine
+// for a single-user personal tool.)
+try {
+  authHeader = localStorage.getItem(AUTH_KEY) || ''
+} catch { /* storage unavailable (private mode) — stay memory-only */ }
+
+// btoa() only accepts Latin-1; encode credentials as UTF-8 bytes first so
+// non-ASCII usernames/passwords don't crash the login handler.
+function utf8Base64(s: string): string {
+  return btoa(String.fromCharCode(...new TextEncoder().encode(s)))
+}
+
 export function setCredentials(user: string, pass: string) {
-  authHeader = 'Basic ' + btoa(user + ':' + pass)
+  if (user === '' && pass === '') {
+    authHeader = ''
+    try { localStorage.removeItem(AUTH_KEY) } catch {}
+    return
+  }
+  authHeader = 'Basic ' + utf8Base64(user + ':' + pass)
+  try { localStorage.setItem(AUTH_KEY, authHeader) } catch {}
+}
+
+export function logout() {
+  setCredentials('', '')
 }
 
 export function getCredentials(): string | null {

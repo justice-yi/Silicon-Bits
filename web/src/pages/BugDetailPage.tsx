@@ -80,6 +80,9 @@ export default function BugDetailPage() {
         {(() => {
           const b = bug()!
           const hasTOC = b.content?.split('\n').filter(l => /^#{2,6}\s/.test(l)).length > 2
+          // Export filenames use the article title, falling back to bug-{id}.
+          const safeTitle = (b.title || '').replace(/[\\/:*?"<>|]/g, '_').trim()
+          const exportName = (safeTitle || `bug-${params.id}`) + '.pdf'
 
           return (
             <div class="w-full" id="bug-content">
@@ -103,7 +106,7 @@ export default function BugDetailPage() {
                       title: b.title,
                       meta: `${b.severity}${b.soc ? ' | ' + b.soc : ''}${b.tags?.length ? ' | ' + b.tags.join(', ') : ''} | ${new Date(b.created_at).toLocaleDateString()}`,
                       contentId: 'bug-md-content',
-                      filename: `bug-${params.id}.pdf`
+                      filename: exportName
                     })}
                     class="px-3 py-1.5 text-xs bg-accent/10 border border-accent/20 rounded-lg text-accent hover:bg-accent/20 transition"
                   >

@@ -83,17 +83,26 @@ export default function WikiDetailPage() {
         {(() => {
           const w = wiki()!
           const hasTOC = w.content.split('\n').filter(l => /^#{2,6}\s/.test(l)).length > 2
+          // Export filenames use the article title, falling back to wiki-{id}
+          // when the title has no filesystem-safe characters left.
+          const safeTitle = (w.title || '').replace(/[\\/:*?"<>|]/g, '_').trim()
+          const exportName = (safeTitle || `wiki-${params.id}`) + '.pdf'
 
-          // Compute imageBasePath from file_path: "data/wiki/09_UART/01_xxx.md" → "/wiki/09_UART"
+          // Compute imageBasePath from file_path. Stored paths are
+          // wiki-root-relative ("LCD/01_x.md"); legacy absolute ones
+          // ("/data/wiki/LCD/01_x.md") carry a "wiki" segment — handle both.
+          // Flat files ("x.md") resolve to "/wiki".
           let imgBase = '/wiki'
           if (w.file_path) {
-            const parts = w.file_path.replace(/\\/g, '/').split('/')
-            // parts: ["data", "wiki", "09_UART", "01_xxx.md"]
-            // take everything after "wiki" except the .md filename
+            const parts = w.file_path.replace(/\\/g, '/').split('/').filter(Boolean)
             const wikiIdx = parts.indexOf('wiki')
+            let dirParts: string[] = []
             if (wikiIdx >= 0 && parts.length > wikiIdx + 2) {
-              imgBase = '/wiki/' + parts.slice(wikiIdx + 1, -1).join('/')
+              dirParts = parts.slice(wikiIdx + 1, -1) // legacy absolute form
+            } else if (wikiIdx < 0 && parts.length > 1) {
+              dirParts = parts.slice(0, -1) // relative form: drop the filename
             }
+            if (dirParts.length > 0) imgBase = '/wiki/' + dirParts.join('/')
           }
 
           return (
@@ -118,7 +127,7 @@ export default function WikiDetailPage() {
                       title: w.title,
                       meta: `${categoryLabel[w.category] || w.category}${w.tags?.length ? ' | ' + w.tags.join(', ') : ''} | ${new Date(w.created_at).toLocaleDateString()}`,
                       contentId: 'wiki-md-content',
-                      filename: `wiki-${params.id}.pdf`
+                      filename: exportName
                     })}
                     class="px-3 py-1.5 text-xs bg-secondary/10 border border-secondary/20 rounded-lg text-secondary hover:bg-secondary/20 transition"
                   >
@@ -211,7 +220,7 @@ export default function WikiDetailPage() {
                       title: w.title,
                       meta: `${categoryLabel[w.category] || w.category}${w.tags?.length ? ' | ' + w.tags.join(', ') : ''} | ${new Date(w.created_at).toLocaleDateString()}`,
                       contentId: 'wiki-md-content',
-                      filename: `wiki-${params.id}.pdf`
+                      filename: exportName
                     })}
                     class="w-10 h-10 rounded-full bg-secondary/15 border border-secondary/30 text-secondary hover:bg-secondary/25 flex items-center justify-center text-sm backdrop-blur-sm transition shadow-lg"
                     title="Export PDF"
