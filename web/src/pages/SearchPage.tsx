@@ -1,4 +1,4 @@
-import { createSignal, onMount, For, Show } from 'solid-js'
+import { createSignal, createEffect, For, Show } from 'solid-js'
 import { useNavigate, useSearchParams } from '@solidjs/router'
 import { search } from '../api/client'
 
@@ -14,16 +14,27 @@ export default function SearchPage() {
   const [loading, setLoading] = createSignal(true)
   const q = () => searchParams.q || ''
 
-  onMount(async () => {
-    if (!q()) { setLoading(false); return }
-    try {
-      const data = await search(q())
-      setResults(data as SearchResult)
-    } catch (err) {
-      console.error(err)
-    } finally {
+  // React to q changes: navigating /search?q=a → /search?q=b does NOT remount
+  // this component, so the search must live in an effect, not onMount.
+  // seq guards against a slow earlier response overwriting a newer one.
+  let seq = 0
+  createEffect(() => {
+    const query = q()
+    const my = ++seq
+    if (!query) {
+      setResults({})
       setLoading(false)
+      return
     }
+    setLoading(true)
+    search(query)
+      .then((data) => {
+        if (my === seq) setResults(data as SearchResult)
+      })
+      .catch((err) => console.error(err))
+      .finally(() => {
+        if (my === seq) setLoading(false)
+      })
   })
 
   return (
