@@ -3,8 +3,8 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/justice/silicon-bits/internal/database"
@@ -24,46 +24,37 @@ func BSPTree(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Flat scan
-	all := make(map[int64]*model.BSPModule)
+	// Flat scan — group children by parent. Row order (ORDER BY sort_order,
+	// name) is exactly the order children appear in, so assembly is
+	// deterministic at every level.
+	childrenOf := make(map[int64][]model.BSPModule)
 	var roots []model.BSPModule
 	for rows.Next() {
 		var m model.BSPModule
 		rows.Scan(&m.ID, &m.ParentID, &m.Name, &m.Slug, &m.Icon, &m.SortOrder, &m.BugCount, &m.WikiCount)
-		all[m.ID] = &m
 		if m.ParentID == nil {
 			roots = append(roots, m)
+		} else {
+			childrenOf[*m.ParentID] = append(childrenOf[*m.ParentID], m)
 		}
 	}
 
-	// Build tree
-	for _, m := range all {
-		if m.ParentID != nil {
-			if parent, ok := all[*m.ParentID]; ok {
-				parent.Children = append(parent.Children, *m)
-			}
+	// Recursive assembly: a module's subtree is fully built before the copy
+	// lands in its parent, at any depth. The previous map-iteration build
+	// appended value copies in random order and could drop grandchildren.
+	var build func(id int64) []model.BSPModule
+	build = func(id int64) []model.BSPModule {
+		kids := childrenOf[id]
+		for i := range kids {
+			kids[i].Children = build(kids[i].ID)
 		}
+		return kids
+	}
+	for i := range roots {
+		roots[i].Children = build(roots[i].ID)
 	}
 
-	// Sort children by sort_order then name (map iteration is unordered)
-	for _, m := range all {
-		sort.Slice(m.Children, func(i, j int) bool {
-			if m.Children[i].SortOrder != m.Children[j].SortOrder {
-				return m.Children[i].SortOrder < m.Children[j].SortOrder
-			}
-			return m.Children[i].Name < m.Children[j].Name
-		})
-	}
-
-	// Convert roots (with children populated from map)
-	var tree []model.BSPModule
-	for _, r := range roots {
-		if p, ok := all[r.ID]; ok {
-			tree = append(tree, *p)
-		}
-	}
-
-	c.JSON(http.StatusOK, tree)
+	c.JSON(http.StatusOK, roots)
 }
 
 // CreateBSPModule handles POST /api/bsp/modules
@@ -78,8 +69,15 @@ func CreateBSPModule(c *gin.Context) {
 		return
 	}
 
-	// Generate slug from name
-	slug := req.Name
+	// Duplicate names make modules indistinguishable in the UI (the tree and
+	// edit dropdowns show names only) — reject with a friendly error instead
+	// of letting the raw UNIQUE constraint surface as a 500.
+	if bspNameExists(0, req.Name) {
+		c.JSON(http.StatusConflict, gin.H{"error": "a module with this name already exists"})
+		return
+	}
+
+	slug := generateUniqueSlug(req.Name)
 
 	var id int64
 	err := database.DB.QueryRow(
@@ -112,8 +110,19 @@ func UpdateBSPModule(c *gin.Context) {
 	args := []any{}
 
 	if req.Name != nil {
-		setClauses = append(setClauses, "name = ?", "slug = ?")
-		args = append(args, *req.Name, *req.Name)
+		// Only treat it as a rename when the name actually changes.
+		var current string
+		database.DB.QueryRow("SELECT name FROM bsp_modules WHERE id = ?", id).Scan(&current)
+		if *req.Name == current {
+			req.Name = nil
+		} else {
+			if bspNameExists(id, *req.Name) {
+				c.JSON(http.StatusConflict, gin.H{"error": "a module with this name already exists"})
+				return
+			}
+			setClauses = append(setClauses, "name = ?", "slug = ?")
+			args = append(args, *req.Name, generateUniqueSlug(*req.Name))
+		}
 	}
 	if req.Icon != nil {
 		setClauses = append(setClauses, "icon = ?")
@@ -139,6 +148,34 @@ func UpdateBSPModule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
+}
+
+// bspNameExists reports whether another module (excluding excludeID) uses
+// this exact name.
+func bspNameExists(excludeID int64, name string) bool {
+	var cnt int
+	database.DB.QueryRow("SELECT COUNT(*) FROM bsp_modules WHERE name = ? AND id != ?", name, excludeID).Scan(&cnt)
+	return cnt > 0
+}
+
+// generateUniqueSlug derives a collision-free slug from the module name.
+// The slug column has a UNIQUE constraint and is not used anywhere except
+// the DB, so it just has to be stable-ish and unique.
+func generateUniqueSlug(name string) string {
+	base := strings.ToLower(strings.TrimSpace(name))
+	base = strings.Join(strings.Fields(base), "-")
+	if base == "" {
+		base = "module"
+	}
+	slug := base
+	for i := 2; ; i++ {
+		var cnt int
+		database.DB.QueryRow("SELECT COUNT(*) FROM bsp_modules WHERE slug = ?", slug).Scan(&cnt)
+		if cnt == 0 {
+			return slug
+		}
+		slug = fmt.Sprintf("%s-%d", base, i)
+	}
 }
 
 // DeleteBSPModule handles DELETE /api/bsp/modules/:id
