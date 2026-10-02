@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -220,38 +221,81 @@ func migrate() error {
 	return nil
 }
 
-// setupFTS creates FTS5 tables if they don't exist and rebuilds the index.
-// Uses standalone FTS (no content= table) to avoid corruption issues.
+// ftsSchemaVersion marks the FTS layout/repair generation. Bumping it forces
+// a one-time full rebuild on the next start (e.g. to repair indexes that went
+// stale while running a build without FTS5 support).
+const ftsSchemaVersion = 2
+
+// setupFTS creates the standalone FTS5 tables (no content= — those corrupted
+// databases) and keeps them in sync without a full rebuild on every start.
 func setupFTS() {
-	// Drop old content-sync FTS if exists (they cause corruption)
-	DB.Exec("DROP TABLE IF EXISTS bugs_fts")
-	DB.Exec("DROP TABLE IF EXISTS wikis_fts")
-	DB.Exec("DROP TRIGGER IF EXISTS bugs_fts_insert")
-	DB.Exec("DROP TRIGGER IF EXISTS bugs_fts_update")
-	DB.Exec("DROP TRIGGER IF EXISTS bugs_fts_delete")
-	DB.Exec("DROP TRIGGER IF EXISTS wikis_fts_insert")
-	DB.Exec("DROP TRIGGER IF EXISTS wikis_fts_update")
-	DB.Exec("DROP TRIGGER IF EXISTS wikis_fts_delete")
+	// Remove triggers from the old content-synced design.
+	for _, t := range []string{"bugs_fts_insert", "bugs_fts_update", "bugs_fts_delete", "wikis_fts_insert", "wikis_fts_update", "wikis_fts_delete"} {
+		DB.Exec("DROP TRIGGER IF EXISTS " + t)
+	}
 
-	// Create standalone FTS tables (store their own content, no content= reference)
-	DB.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS bugs_fts USING fts5(
+	if _, err := DB.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS bugs_fts USING fts5(
 		title, background, debug_process, root_cause, solution
-	)`)
-	DB.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS wikis_fts USING fts5(
+	)`); err != nil {
+		log.Printf("FTS: create bugs_fts failed (binary built without -tags fts5?): %v", err)
+		return
+	}
+	if _, err := DB.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS wikis_fts USING fts5(
 		title, content
-	)`)
+	)`); err != nil {
+		log.Printf("FTS: create wikis_fts failed (binary built without -tags fts5?): %v", err)
+		return
+	}
 
-	// Rebuild from source tables
-	RebuildFTS()
+	var uv int
+	DB.QueryRow("PRAGMA user_version").Scan(&uv)
+	if uv < ftsSchemaVersion {
+		// One-time full rebuild — also repairs indexes that went stale while
+		// running a binary without FTS5 support.
+		RebuildFTS()
+		DB.Exec(fmt.Sprintf("PRAGMA user_version = %d", ftsSchemaVersion))
+		log.Printf("FTS: full rebuild done (schema version %d)", ftsSchemaVersion)
+		return
+	}
+
+	// Cheap drift check: row counts must match the source tables.
+	syncFTSIfDrifted("bugs_fts", "bugs")
+	syncFTSIfDrifted("wikis_fts", "wikis")
 }
 
-// RebuildFTS does a full rebuild of FTS indexes from bugs/wikis tables.
-// Exported so it can be called after wiki scan.
+// syncFTSIfDrifted rebuilds one FTS table when its row count no longer
+// matches the source table (rows written while FTS was broken, etc.).
+func syncFTSIfDrifted(fts, src string) {
+	var a, b int
+	DB.QueryRow("SELECT COUNT(*) FROM " + fts).Scan(&a)
+	DB.QueryRow("SELECT COUNT(*) FROM " + src).Scan(&b)
+	if a != b {
+		log.Printf("FTS: %s out of sync (%d vs %d rows), rebuilding", fts, a, b)
+		switch fts {
+		case "bugs_fts":
+			DB.Exec("DELETE FROM bugs_fts")
+			DB.Exec("INSERT INTO bugs_fts(rowid, title, background, debug_process, root_cause, solution) SELECT id, title, background, debug_process, root_cause, solution FROM bugs")
+		case "wikis_fts":
+			DB.Exec("DELETE FROM wikis_fts")
+			DB.Exec("INSERT INTO wikis_fts(rowid, title, content) SELECT id, title, content FROM wikis")
+		}
+	}
+}
+
+// RebuildFTS does a full rebuild of FTS indexes from bugs/wikis tables,
+// atomically. Exported so it can be called after wiki scan.
 func RebuildFTS() {
-	DB.Exec("DELETE FROM bugs_fts")
-	DB.Exec("DELETE FROM wikis_fts")
-	DB.Exec("INSERT INTO bugs_fts(rowid, title, background, debug_process, root_cause, solution) SELECT id, title, background, debug_process, root_cause, solution FROM bugs")
-	DB.Exec("INSERT INTO wikis_fts(rowid, title, content) SELECT id, title, content FROM wikis")
+	tx, err := DB.Begin()
+	if err != nil {
+		return
+	}
+	tx.Exec("DELETE FROM bugs_fts")
+	tx.Exec("DELETE FROM wikis_fts")
+	tx.Exec("INSERT INTO bugs_fts(rowid, title, background, debug_process, root_cause, solution) SELECT id, title, background, debug_process, root_cause, solution FROM bugs")
+	tx.Exec("INSERT INTO wikis_fts(rowid, title, content) SELECT id, title, content FROM wikis")
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+	}
 }
 
 // SyncBugFTS updates the FTS index for a single bug.
