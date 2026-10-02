@@ -13,7 +13,7 @@ export default function App(props: { children: JSX.Element }) {
     e.preventDefault()
     setCredentials(user(), pass())
     fetch('/api/stats', {
-      headers: { Authorization: 'Basic ' + btoa(user() + ':' + pass()) }
+      headers: { Authorization: getCredentials() || '' }
     }).then(r => {
       if (r.ok) {
         setAuthed(true)

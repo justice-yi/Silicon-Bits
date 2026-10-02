@@ -40,7 +40,15 @@ export async function request(path: string, opts: RequestInit = {}) {
   if (opts.body && typeof opts.body === 'string') headers['Content-Type'] = 'application/json'
 
   const res = await fetch(BASE + path, { ...opts, headers })
-  if (res.status === 401) throw new Error('Unauthorized')
+  if (res.status === 401) {
+    // Stored credentials are no longer valid (password changed on the
+    // server, etc.). Drop them and return to the login screen — otherwise
+    // every request keeps challenging and the browser pops its native
+    // auth dialog on each one.
+    logout()
+    location.assign('/')
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || res.statusText)
