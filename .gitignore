@@ -37,3 +37,6 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# local test binaries
+silicon-bits-nofts

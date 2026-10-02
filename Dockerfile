@@ -16,7 +16,7 @@ RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY --from=frontend /app/web/dist/ web/dist/
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /silicon-bits ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -tags "fts5" -ldflags="-s -w" -o /silicon-bits ./cmd/server
 
 # Stage 3: Runtime
 FROM alpine:3.19
