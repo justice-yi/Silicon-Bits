@@ -138,7 +138,7 @@ func ScanDirectory(wikiDir string) (imported int, err error) {
 			var id int64
 			var fp string
 			if rows.Scan(&id, &fp) == nil {
-				if _, err := os.Stat(fp); os.IsNotExist(err) {
+				if _, err := os.Stat(ResolveWikiPath(wikiDir, fp)); os.IsNotExist(err) {
 					database.DB.Exec("DELETE FROM wikis WHERE id = ?", id)
 					database.DeleteWikiFTS(id)
 					imported++
@@ -153,8 +153,9 @@ func ScanDirectory(wikiDir string) (imported int, err error) {
 // importMD imports a single .md file if not already in DB.
 // Also re-processes existing wikis that still have external image URLs.
 func importMD(wikiDir string, fp string) bool {
+	relFP := RelToWikiDir(wikiDir, fp)
 	var existingID int64
-	err := database.DB.QueryRow("SELECT id FROM wikis WHERE file_path = ?", fp).Scan(&existingID)
+	err := database.DB.QueryRow("SELECT id FROM wikis WHERE file_path = ?", relFP).Scan(&existingID)
 	if err == nil {
 		// Already imported — skip (reprocessing external images is too slow at startup)
 		return false
@@ -169,7 +170,7 @@ func importMD(wikiDir string, fp string) bool {
 	if wf.Title == "" {
 		wf.Title = strings.TrimSuffix(filepath.Base(fp), ".md")
 	}
-	wf.FilePath = fp
+	wf.FilePath = relFP
 
 	// Download external images and replace URLs with local paths
 	wf.Content = downloadExternalImages(fp, wf.Content)

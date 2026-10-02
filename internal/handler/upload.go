@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/justice/silicon-bits/internal/database"
+	"github.com/justice/silicon-bits/internal/wiki"
 )
 
 var allowedExts = map[string]bool{
@@ -252,7 +253,7 @@ func getWikiAssetDir(wikiID string) string {
 	var fp string
 	err := database.DB.QueryRow("SELECT file_path FROM wikis WHERE id = ?", wikiID).Scan(&fp)
 	if err == nil && fp != "" {
-		return filepath.Dir(fp)
+		return filepath.Dir(wiki.ResolveWikiPath(GetWikiDir(), fp))
 	}
 	var title string
 	database.DB.QueryRow("SELECT title FROM wikis WHERE id = ?", wikiID).Scan(&title)

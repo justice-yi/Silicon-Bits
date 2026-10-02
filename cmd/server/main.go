@@ -23,8 +23,11 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Scan wiki directory for .md files on startup
+	// Migrate legacy absolute file_path values first — the scan below deletes
+	// rows whose files are missing, and unmigrated legacy paths would all
+	// look "missing" after a data-directory move.
 	wikiDir := cfg.DataDir + "/wiki"
+	wiki.MigrateFilePaths(wikiDir)
 	if imported, err := wiki.ScanDirectory(wikiDir); err != nil {
 		log.Printf("Wiki scan warning: %v", err)
 	} else if imported > 0 {

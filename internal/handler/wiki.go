@@ -3,7 +3,9 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -52,21 +54,27 @@ func ListWikis(c *gin.Context) {
 	var total int
 
 	if f.Q != "" {
+		// Phrase-quote user input so MATCH can never hit a syntax error.
+		safeQ := ftsQuote(f.Q)
 		countQ := `SELECT COUNT(*) FROM wikis_fts WHERE wikis_fts MATCH ?`
-		database.DB.QueryRow(countQ, f.Q).Scan(&total)
+		database.DB.QueryRow(countQ, safeQ).Scan(&total)
 
 		dataQ := `SELECT w.id, w.title, w.category, w.tags, substr(w.content, 1, 200) as content, w.source, w.file_path, w.bsp_module_id, w.created_at, w.updated_at
 			FROM wikis_fts f JOIN wikis w ON w.id = f.rowid
 			WHERE wikis_fts MATCH ?
 			ORDER BY rank
 			LIMIT ? OFFSET ?`
-		rows, err := database.DB.Query(dataQ, f.Q, f.PageSize, (f.Page-1)*f.PageSize)
+		rows, err := database.DB.Query(dataQ, safeQ, f.PageSize, (f.Page-1)*f.PageSize)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		defer rows.Close()
-		wikis = scanWikis(rows)
+		wikis, err = scanWikis(rows)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	} else {
 		query := `SELECT COUNT(*) FROM wikis WHERE 1=1`
 		args := []any{}
@@ -85,7 +93,11 @@ func ListWikis(c *gin.Context) {
 			return
 		}
 		defer rows.Close()
-		wikis = scanWikis(rows)
+		wikis, err = scanWikis(rows)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": wikis, "total": total, "page": f.Page, "page_size": f.PageSize})
@@ -113,7 +125,8 @@ func GetWiki(c *gin.Context) {
 
 	// Only read from file when explicitly requested (edit page)
 	if c.Query("source") == "file" && w.FilePath != "" {
-		if data, err := os.ReadFile(w.FilePath); err == nil {
+		absFP := wiki.ResolveWikiPath(wikiDir, w.FilePath)
+		if data, err := os.ReadFile(absFP); err == nil {
 			wf := wiki.ParseFrontmatter(string(data))
 			w.Content = wf.Content
 			if wf.Title != "" {
@@ -121,7 +134,7 @@ func GetWiki(c *gin.Context) {
 			}
 		}
 		// Convert relative image URLs to absolute for editor rendering
-		w.Content = wikiRelToAbsURLs(w.Content, w.FilePath)
+		w.Content = wikiRelToAbsURLs(w.Content, absFP)
 	}
 
 	// Load linked bugs
@@ -151,6 +164,22 @@ func CreateWiki(c *gin.Context) {
 	if req.Category == "" {
 		req.Category = "other"
 	}
+	if err := wiki.SanitizeTitle(req.Title); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Duplicate titles are the root of the rename/delete corruption bugs:
+	// reject them upfront instead of letting two rows fight over one path.
+	if wikiTitleExists(0, req.Title) {
+		c.JSON(http.StatusConflict, gin.H{"error": "an article with this title already exists"})
+		return
+	}
+	// A leftover directory with the same name (e.g. orphaned pic/ dir from a
+	// past failed delete) would silently absorb the new wiki's files.
+	if _, err := os.Lstat(filepath.Join(wikiDir, req.Title)); err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "a directory with this title already exists"})
+		return
+	}
 	if req.Source == "" {
 		req.Source = "original"
 	}
@@ -160,10 +189,12 @@ func CreateWiki(c *gin.Context) {
 	}
 
 	// Write .md file
-	fp := ""
 	fp, err := wiki.WriteWikiFile(wikiDir, req.Title, req.Category, req.Tags, req.Content)
-	if err == nil {
-		fp = fp
+	if err != nil {
+		// Never insert a row without its file — the startup scan would delete
+		// it and re-import churn would follow.
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "write wiki file: " + err.Error()})
+		return
 	}
 
 	if req.Source == "original" && fp != "" {
@@ -174,7 +205,8 @@ func CreateWiki(c *gin.Context) {
 	err = database.DB.QueryRow(
 		`INSERT INTO wikis (title, category, bsp_module_id, tags, content, source, file_path)
 		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		req.Title, req.Category, req.BSPModuleID, string(tagsJSON), req.Content, req.Source, fp,
+		req.Title, req.Category, req.BSPModuleID, string(tagsJSON), req.Content, req.Source,
+		wiki.RelToWikiDir(wikiDir, fp),
 	).Scan(&id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -200,6 +232,8 @@ func UpdateWiki(c *gin.Context) {
 	var currentTagsStr string
 	database.DB.QueryRow("SELECT file_path, title, category, tags FROM wikis WHERE id = ?", id).
 		Scan(&currentFP, &currentTitle, &currentCategory, &currentTagsStr)
+	// file_path is stored relative to the wiki root; file ops need absolute.
+	currentAbs := wiki.ResolveWikiPath(wikiDir, currentFP)
 
 	var currentTags []string
 	json.Unmarshal([]byte(currentTagsStr), &currentTags)
@@ -238,7 +272,7 @@ func UpdateWiki(c *gin.Context) {
 	}
 	if req.Content != nil {
 		// Convert absolute image URLs back to relative for storage
-		relContent := wikiAbsToRelURLs(*req.Content, currentFP)
+		relContent := wikiAbsToRelURLs(*req.Content, currentAbs)
 		setClauses = append(setClauses, "content = ?")
 		args = append(args, relContent)
 		newContent = relContent
@@ -254,41 +288,47 @@ func UpdateWiki(c *gin.Context) {
 	}
 
 	// Handle file rename if title changed
-	newFP := currentFP
+	newFPAbs := currentAbs
 	titleChanged := req.Title != nil && *req.Title != currentTitle
-	if titleChanged && currentFP != "" {
-		oldDir := filepath.Dir(currentFP)
-		newDir := filepath.Join(wikiDir, newTitle)
-		if oldDir != newDir {
-			// Rename directory (keeps pic/ subfolder intact)
-			if _, err := os.Stat(oldDir); err == nil {
-				os.Rename(oldDir, newDir)
-			}
-			// Rename .md file inside the (now renamed) directory
-			oldMD := filepath.Join(newDir, currentTitle+".md")
-			newFP = filepath.Join(newDir, newTitle+".md")
-			if oldMD != newFP {
-				os.Rename(oldMD, newFP)
-			}
-			setClauses = append(setClauses, "file_path = ?")
-			args = append(args, newFP)
+	if titleChanged {
+		if err := wiki.SanitizeTitle(newTitle); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
+		if wikiTitleExists(id, newTitle) {
+			c.JSON(http.StatusConflict, gin.H{"error": "an article with this title already exists"})
+			return
+		}
+	}
+	if titleChanged && currentAbs != "" {
+		fp, err := wiki.RenameWikiFile(wikiDir, currentAbs, currentTitle, newTitle)
+		if err != nil {
+			if errors.Is(err, wiki.ErrPathExists) {
+				c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "rename failed: " + err.Error()})
+			}
+			return
+		}
+		newFPAbs = fp
+		setClauses = append(setClauses, "file_path = ?")
+		args = append(args, wiki.RelToWikiDir(wikiDir, newFPAbs))
 	}
 
 	// Update .md file content
-	if newContent != "" && newFP != "" {
-		wiki.WriteToPath(newFP, newTitle, newCategory, newTags, newContent)
-	} else if newFP != "" {
+	if newContent != "" && newFPAbs != "" {
+		wiki.WriteToPath(newFPAbs, newTitle, newCategory, newTags, newContent)
+	} else if newFPAbs != "" {
 		// Only title/category/tags changed — update frontmatter in-place
 		if req.Title != nil || req.Category != nil || req.Tags != nil {
-			wiki.UpdateFrontmatter(newFP, newTitle, newCategory, newTags)
+			wiki.UpdateFrontmatter(newFPAbs, newTitle, newCategory, newTags)
 		}
 	} else if newContent != "" {
 		// Create file for wiki that didn't have one
 		fp, _ := wiki.WriteWikiFile(wikiDir, newTitle, newCategory, newTags, newContent)
 		if fp != "" {
 			setClauses = append(setClauses, "file_path = ?")
-			args = append(args, fp)
+			args = append(args, wiki.RelToWikiDir(wikiDir, fp))
 		}
 	}
 
@@ -334,11 +374,14 @@ func DeleteWiki(c *gin.Context) {
 
 	// Delete wiki directory (contains .md and pic/)
 	if fp != "" {
-		parentDir := filepath.Dir(fp)
-		if strings.HasPrefix(parentDir, wikiDir) && parentDir != wikiDir {
-			os.RemoveAll(parentDir)
+		absFP := wiki.ResolveWikiPath(wikiDir, fp)
+		parentDir := filepath.Dir(absFP)
+		wikiRootAbs, _ := filepath.Abs(wikiDir)
+		parentAbs, _ := filepath.Abs(parentDir)
+		if parentAbs != wikiRootAbs && strings.HasPrefix(parentAbs, wikiRootAbs+string(filepath.Separator)) {
+			os.RemoveAll(parentAbs)
 		} else {
-			os.Remove(fp)
+			os.Remove(absFP)
 		}
 	}
 
@@ -378,7 +421,7 @@ func ExportWiki(c *gin.Context) {
 	// Resolve wiki directory for relative image paths
 	wDir := ""
 	if w.FilePath != "" {
-		wDir = filepath.Dir(w.FilePath)
+		wDir = filepath.Dir(wiki.ResolveWikiPath(wikiDir, w.FilePath))
 	} else {
 		// Fallback: try data/wiki/{title}/
 		candidate := filepath.Join(wikiDir, w.Title)
@@ -397,16 +440,35 @@ func ExportWiki(c *gin.Context) {
 	md += embedImages(w.Content, wDir)
 
 	if format == "md" {
-		c.Header("Content-Disposition", "attachment; filename=wiki-"+strconv.FormatInt(id, 10)+".md")
+		// Prefer the article title as the download name (UTF-8 encoded);
+		// fall back to wiki-{id} for clients that ignore filename*.
+		safeTitle := sanitizeFilename(w.Title)
+		name := safeTitle
+		if name == "" {
+			name = "wiki-" + strconv.FormatInt(id, 10)
+		}
+		c.Header("Content-Disposition",
+			"attachment; filename=\"wiki-"+strconv.FormatInt(id, 10)+".md\"; filename*=UTF-8''"+url.PathEscape(name)+".md")
 		c.Data(http.StatusOK, "text/markdown; charset=utf-8", []byte(md))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"markdown": md})
 }
 
+// sanitizeFilename replaces characters that are unsafe in download filenames.
+func sanitizeFilename(name string) string {
+	mapped := strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`\/:*?"<>|`, r) {
+			return '_'
+		}
+		return r
+	}, strings.TrimSpace(name))
+	return mapped
+}
+
 // --- helpers ---
 
-func scanWikis(rows *sql.Rows) []model.Wiki {
+func scanWikis(rows *sql.Rows) ([]model.Wiki, error) {
 	var wikis []model.Wiki
 	for rows.Next() {
 		var w model.Wiki
@@ -415,7 +477,8 @@ func scanWikis(rows *sql.Rows) []model.Wiki {
 		json.Unmarshal([]byte(tagsStr), &w.Tags)
 		wikis = append(wikis, w)
 	}
-	return wikis
+	// Without this check, a failed query looks like "no results" instead of an error.
+	return wikis, rows.Err()
 }
 
 func applyWikiFilters(query string, args []any, f model.WikiFilter) (string, []any) {
@@ -428,6 +491,14 @@ func applyWikiFilters(query string, args []any, f model.WikiFilter) (string, []a
 		args = append(args, f.BSPModuleID)
 	}
 	return query, args
+}
+
+// wikiTitleExists reports whether another wiki (excluding excludeID) already
+// uses this exact title.
+func wikiTitleExists(excludeID int64, title string) bool {
+	var cnt int
+	database.DB.QueryRow("SELECT COUNT(*) FROM wikis WHERE title = ? AND id != ?", title, excludeID).Scan(&cnt)
+	return cnt > 0
 }
 
 // GetWikiDir returns the configured wiki directory
