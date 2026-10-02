@@ -42,7 +42,8 @@ make build          # 或者手动执行：
 # 3. 启动
 ./silicon-bits
 # 默认监听 http://localhost:8080
-# 默认账号: admin / silicon
+# 默认账号: admin / silicon（生产部署务必通过 AUTH_USERNAME / AUTH_PASSWORD 覆盖；
+# 登录报 Invalid credentials 时，先确认部署处的实际配置，默认值只在裸跑二进制时生效）
 ```
 
 ---
@@ -101,8 +102,8 @@ PORT=8080 ./silicon-bits-arm64
 | Linux AMD64 | linux | amd64 | gcc |
 | Linux ARM64 | linux | arm64 | aarch64-linux-gnu-gcc |
 | Windows AMD64 | windows | amd64 | x86_64-w64-mingw32-gcc |
-| macOS ARM64 | darwin | arm64 | clang |
-| macOS AMD64 | darwin | amd64 | clang |
+
+> macOS 目标需在 macOS 上编译，或配置 osxcross 工具链，Linux 上直接 clang 交叉编译不可行。
 
 ---
 
@@ -252,6 +253,11 @@ curl -u your_user:your_password -X POST http://localhost:8080/api/wikis/scan
 
 ## 公网部署（HTTPS）
 
+> ⚠️ **先读这个**：应用的 `/wiki`、`/bugs`、`/uploads` 静态路由（文章正文、图片）
+> **不经过 Basic Auth**。直接把端口暴露公网 = 所有内容匿名可读。
+> 公网部署**必须**前置一层带认证的网关（下方 Caddy 方式，或自备 FRP/Cloudflare 的鉴权），
+> 或用防火墙/安全组限制来源 IP。
+
 ### 方式一：Docker + Caddy（推荐）
 
 1. 准备一个域名，解析到服务器 IP
@@ -330,30 +336,23 @@ cloudflared tunnel --url http://localhost:8080
 
 ### 方法一：Docker Compose（最简单）
 
-把以下文件打包给别人：
-
-```
-silicon-bits/
-├── Dockerfile
-├── docker-compose.yml
-└── web/dist/            # 预编译的前端
-```
-
-对方只需要：
+compose 用 `build: .` 从源码构建，需要完整仓库（不能只拷 Dockerfile + dist）：
 
 ```bash
 # 1. 安装 Docker
 curl -fsSL https://get.docker.com | sh
 
-# 2. 进入项目目录
-cd silicon-bits
+# 2. 获取完整源码并启动（含前端构建+后端编译，首次需要几分钟）
+git clone <repo-url> silicon-bits && cd silicon-bits
 
-# 3. 一键启动
-docker compose up -d
+# 3. 先改密码再启动（强烈建议）
+#    编辑 docker-compose.yml 里的 AUTH_USERNAME / AUTH_PASSWORD
 
-# 4. 访问
-# http://服务器IP:8080
-# 账号: admin / silicon（记得改密码）
+# 4. 一键启动
+docker compose up -d --build
+
+# 5. 访问（注意端口：compose 里映射 9090:8080）
+# http://服务器IP:9090
 ```
 
 ### 方法二：预编译二进制（无需 Docker）
@@ -599,14 +598,15 @@ ls -lh data/backups/
 ### 手动备份
 
 ```bash
-# SQLite 数据库备份（Bug 数据 + Wiki 索引）
-cp data/silicon.db ~/backup/silicon-$(date +%Y%m%d).db
+# ⚠️ 服务运行中直接 cp 主库文件可能丢失 -wal 里未合并的最近写入。
+# 推荐在线备份（自动合并 WAL，无需停服）：
+sqlite3 data/silicon.db ".backup '~/backup/silicon-$(date +%Y%m%d).db'"
 
-# Wiki .md 文件备份
+# 或停服后整目录打包（最稳妥）：
+# tar czf ~/backup/data-$(date +%Y%m%d).tar.gz data/
+
+# Wiki .md 文件是独立文件，随时可以直接备份
 tar czf ~/backup/wiki-$(date +%Y%m%d).tar.gz data/wiki/
-
-# 完整备份（推荐）
-tar czf silicon-bits-full-$(date +%Y%m%d).tar.gz data/
 ```
 
 ### 迁移到新机器

@@ -14,7 +14,8 @@
 ```
 silicon-bits/
 ├── CLAUDE.md                    # 本文件，项目上下文（进此目录时自动加载）
-├── GUIDE.md                     # 使用文档（部署、交叉编译、Docker）
+├── README.md                    # 使用文档（部署、交叉编译、Docker）
+├── Makefile                     # make build = 前端 + 后端一键构建
 ├── Dockerfile                   # 多阶段构建：前端 build → Go build → alpine 运行
 ├── docker-compose.yml           # app + caddy 一键部署
 ├── Caddyfile                    # HTTPS 反向代理配置模板
@@ -152,6 +153,12 @@ GET    /api/bsp/tree                 # BSP 模块树（含 bug_count）
 GET    /api/drawio/config            # Draw.io 服务地址（前端获取 embed URL）
 PUT    /api/drawio/save              # 保存 Draw.io 图表 XML
 ```
+
+> 语义补充（2026-10 bug 修复批次）：
+> - 文章/分类撞已有名称 → **409**（不再放任重名或裸 SQL 500）
+> - 改名/上传等文件操作失败 → **立即中止**，绝不让 DB file_path 与磁盘分裂
+> - `wikis.file_path` 存 **wiki 根相对路径**（换机迁移 ID 不洗牌；旧绝对路径启动时自动迁移）
+> - FTS 搜索输入自动短语转义，任意字符不会触发语法错误
 
 ### 静态文件服务
 
